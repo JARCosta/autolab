@@ -1,0 +1,3 @@
+[submodule "boost_bot"]
+	path = boost_bot
+	url = git@github.com:JARCosta/BoostBot.git
