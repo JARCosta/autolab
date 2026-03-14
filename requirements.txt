@@ -1,0 +1,16 @@
+# Core
+python-dotenv
+requests
+flask
+pyngrok
+
+# StreamElements
+numpy
+matplotlib
+pillow
+websocket-client
+
+# BoostBot
+discord.py==2.4.0
+tabulate
+aiofiles
