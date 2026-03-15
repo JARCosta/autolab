@@ -3,10 +3,10 @@ import multiprocessing
 import traceback
 
 from flask import request
+from notifications import send_message
 
 from webapp.telegram import telegram_bp
 from webapp.telegram.commands import commands
-from webapp.telegram.messaging import send_message
 
 
 def _proc_function(command, arguments):

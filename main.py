@@ -1,72 +1,78 @@
 """
 AutoLab - Process orchestrator.
 Launches all services: StreamElements bettors, Telegram webapp, and Discord bot.
+Uses threading (I/O-bound workload); one process keeps memory low and logs consistent.
 """
-import multiprocessing
-
+import threading
 from dotenv import load_dotenv
+
+from config import STREAMELEMENTS_BETTORS, WALLAPOP_POLL_ENABLED
+
 load_dotenv()
 
 if __name__ == "__main__":
+    from logging_config import setup_logging
+    from notifications.telegram import TelegramChannel
+    import notifications
 
-    kill_event = multiprocessing.Event()
+    log = setup_logging("autolab")
+    notifications.set_channel(TelegramChannel())
+
+    kill_event = threading.Event()
 
     from stream_elements.oauth import check_oauth_token
+
     OAUTH = {
-        "el_pipow": check_oauth_token("El_Pipow"),
-        "jrcosta": check_oauth_token("JRCosta"),
+        "El_Pipow": check_oauth_token("El_Pipow"),
+        "JRCosta": check_oauth_token("JRCosta"),
     }
 
-    process_list = []
+    threads = []
 
     from stream_elements.bettor import Bettor
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("runah", "JRCosta", OAUTH["jrcosta"], kill_event)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("runah", "El_Pipow", OAUTH["el_pipow"], kill_event, True)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("prcs", "JRCosta", OAUTH["jrcosta"], kill_event, True)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("prcs", "El_Pipow", OAUTH["el_pipow"], kill_event)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("nopeej", "JRCosta", OAUTH["jrcosta"], kill_event, True)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("nopeej", "El_Pipow", OAUTH["el_pipow"], kill_event)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("valek", "JRCosta", OAUTH["jrcosta"], kill_event, True)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("valek", "El_Pipow", OAUTH["el_pipow"], kill_event)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("n0vaisj", "JRCosta", OAUTH["jrcosta"], kill_event, True)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("n0vaisj", "El_Pipow", OAUTH["el_pipow"], kill_event)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("windoh", "JRCosta", OAUTH["jrcosta"], kill_event, True)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("windoh", "El_Pipow", OAUTH["el_pipow"], kill_event)))
-    process_list.append(multiprocessing.Process(target=Bettor,
-        args=("el_pipow", "JRCosta", OAUTH["jrcosta"], kill_event, True)))
+
+    for channel, bettors in STREAMELEMENTS_BETTORS.items():
+        for username, is_bettor in bettors.items():
+            args = (channel, username, OAUTH[username], kill_event, is_bettor)
+            t = threading.Thread(target=Bettor, args=args, daemon=False)
+            threads.append(t)
 
     import webapp
-    process_list.append(multiprocessing.Process(target=webapp.launch, args=()))
+
+    t_webapp = threading.Thread(target=webapp.launch, args=(), daemon=True)
+    threads.append(t_webapp)
 
     from boost_bot.main import run_bot as run_discord_bot
-    process_list.append(multiprocessing.Process(target=run_discord_bot, args=()))
 
-    # from wallapop_tracker.tracker import term_func
-    # process_list.append(multiprocessing.Process(target=term_func,
-    #     args=("Pies de gato 42", None, 5, 60)))
+    t_discord = threading.Thread(target=run_discord_bot, args=(), daemon=True)
+    threads.append(t_discord)
 
-    for process in process_list:
-        process.start()
+    if WALLAPOP_POLL_ENABLED:
+        from wallapop_tracker.tracker import SearchRunner
+
+        def run_wallapop():
+            runner = SearchRunner()
+            while not kill_event.is_set():
+                kill_event.wait(timeout=60)
+            for proc in runner.processes.values():
+                proc.terminate()
+
+        t_wallapop = threading.Thread(target=run_wallapop, daemon=True)
+        threads.append(t_wallapop)
+
+    for t in threads:
+        t.start()
 
     try:
-        while not kill_event.wait(0.5):
-            pass
+        kill_event.wait()
     except KeyboardInterrupt:
+        log.info("Shutdown signal received. Stopping threads...")
         kill_event.set()
-        print("Shutdown signal received. Stopping all processes...")
 
-    for process in process_list:
-        process.join()
-    print("All processes stopped gracefully.")
+    # Join Bettor threads (non-daemon); webapp/discord are daemon and will exit with process
+    join_timeout = 10
+    for t in threads:
+        if not t.daemon:
+            t.join(timeout=join_timeout)
+
+    log.info("All threads stopped.")

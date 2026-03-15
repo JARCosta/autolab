@@ -10,9 +10,12 @@ from typing import Any, Dict, Optional
 import requests
 
 import config
-from webapp.telegram.messaging import send_message_threaded, send_message
+from logging_config import setup_logging
+import paths
+from notifications import send_message, send_message_threaded
 
-RESOURCES_DIR = os.path.join("stream_elements", "resources")
+log = setup_logging("stream_elements.utils")
+RESOURCES_DIR = paths.STREAMELEMENTS_RESOURCES_DIR
 
 
 def get_streamelements_id(channel: str) -> str:
@@ -71,7 +74,7 @@ def sleep_until(end: datetime.datetime, kill_thread: threading.Event):
     now = datetime.datetime.now()
     if now < end:
         sleep_time = (end - now).total_seconds()
-        print(f"Sleeping for {sleep_time} seconds")
+        log.info("Sleeping for %s seconds", sleep_time)
         for _ in range(int(sleep_time) // 10):
             time.sleep(10)
             if kill_thread.is_set():
@@ -183,7 +186,7 @@ def format_message_json(parsed_message: Dict[str, Any], indent: int = 2) -> str:
 
 # ── Message frequency tracking ──────────────────────────────
 
-_MESSAGE_LOGS_FILE = os.path.join(RESOURCES_DIR, "message_logs.json")
+_MESSAGE_LOGS_FILE = paths.STREAMELEMENTS_MESSAGE_LOGS_FILE
 
 
 def get_message_logs(channel: str, message_text: str) -> Dict[str, Any]:

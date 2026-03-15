@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoLab — Balances</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 1.5rem; background: #1a1a1a; color: #e0e0e0; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+    table { border-collapse: collapse; width: 100%; max-width: 32rem; }
+    th, td { border: 1px solid #444; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #2a2a2a; font-weight: 600; }
+    tr:nth-child(even) { background: #222; }
+    .balance { text-align: right; font-variant-numeric: tabular-nums; }
+    .meta { margin-top: 0.75rem; font-size: 0.875rem; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>StreamElements balances</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Channel</th>
+        {% for b in bettors %}<th class="balance">{{ b }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for channel, cells in rows %}
+      <tr>
+        <td>{{ channel }}</td>
+        {% for bettor, balance in cells %}
+        <td class="balance" data-channel="{{ channel }}" data-bettor="{{ bettor }}">{{ balance }}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="meta" id="meta">Loading fresh data…</p>
+  <script>
+    (function () {
+      var meta = document.getElementById('meta');
+      function setMeta(text) { if (meta) meta.textContent = text; }
+      fetch('/api/balances')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          data.rows.forEach(function (row) {
+            row.cells.forEach(function (cell) {
+              var td = document.querySelector(
+                'td[data-channel="' + row.channel + '"][data-bettor="' + cell.bettor + '"]'
+              );
+              if (td) td.textContent = cell.balance;
+            });
+          });
+          setMeta('Updated with live data.');
+        })
+        .catch(function () { setMeta('Update failed.'); });
+    })();
+  </script>
+</body>
+</html>

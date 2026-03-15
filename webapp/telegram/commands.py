@@ -1,18 +1,14 @@
 """Telegram bot command handlers."""
-from stream_elements import utils
-from webapp.telegram.messaging import send_message
+from notifications import send_message
 
-import config
+from webapp.balance_data import get_balance_rows
 
 
 def balance_overview():
-    bettors = config.BETTORS.keys()
-    channels = config.CHANNELS.keys()
     message = ""
-    for channel in channels:
+    for channel, rows in get_balance_rows():
         message += f"{channel}:\n"
-        for bettor in bettors:
-            balance = utils.get_balance(channel, bettor)
+        for bettor, balance in rows:
             message += f"\t {bettor}: {balance}\n"
         message += "\n"
     send_message(message, notification=True)

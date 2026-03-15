@@ -8,20 +8,24 @@ import traceback
 from math import sqrt
 
 import matplotlib.pyplot as plt
+
+from logging_config import setup_logging
+
+log = setup_logging("stream_elements.betting")
 import numpy as np
 import requests
 import websocket
 
-from webapp.telegram.messaging import (
+from notifications import (
     add_telegram_log,
-    send_message,
     send_message_threaded,
     send_image_threaded,
     send_telegram_log,
 )
 from stream_elements import utils
+import paths
 
-RESOURCES_DIR = os.path.join("stream_elements", "resources")
+RESOURCES_DIR = paths.STREAMELEMENTS_RESOURCES_DIR
 DELAY_DEFAULT = 2.05
 DELAY_GOAL = 0.4
 
@@ -30,7 +34,7 @@ DELAY_GOAL = 0.4
 
 
 def get_variable_delay() -> float:
-    path = os.path.join(RESOURCES_DIR, "variable_delay.txt")
+    path = paths.STREAMELEMENTS_VARIABLE_DELAY_FILE
     try:
         with open(path, "r", encoding="utf-8") as f:
             variable_delay = float(f.read())
@@ -41,7 +45,7 @@ def get_variable_delay() -> float:
 
 
 def set_variable_delay(delay: float) -> float:
-    path = os.path.join(RESOURCES_DIR, "variable_delay.txt")
+    path = paths.STREAMELEMENTS_VARIABLE_DELAY_FILE
     os.makedirs(RESOURCES_DIR, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(str(round(delay, 2)))
@@ -58,7 +62,7 @@ def change_variable_delay(amount: float = 0.1) -> None:
 
 # ── Last bet tracking ────────────────────────────────────────
 
-_LAST_BET_FILE = os.path.join(RESOURCES_DIR, "last_bet.json")
+_LAST_BET_FILE = paths.STREAMELEMENTS_LAST_BET_FILE
 
 
 def get_last_bet_full() -> dict:
@@ -168,7 +172,7 @@ def optimal_bet(options: dict) -> tuple[str, int]:
     optimal_bet_amount = -Ba + sqrt((Bp * Ba * Oa) / (1 / 1))
     del Ba, Oa, Bp
 
-    print(f"Optimal bet for option '{best_option}': {optimal_bet_amount:.2f} points")
+    log.info("Optimal bet for option '%s': %.2f points", best_option, optimal_bet_amount)
     return best_option, optimal_bet_amount
 
 
@@ -237,7 +241,7 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
     contest_id_1 = contest_json["contest"]["_id"] if contest_json else None
     if contest_id_1 is None:
         return False
-    print(f"[{channel}, {username}] Contest found: https://streamelements.com/{channel}/contest/{contest_id_1}")
+    log.info("[%s, %s] Contest found: https://streamelements.com/%s/contest/%s", channel, username, channel, contest_id_1)
     utils.sleep_until(end - datetime.timedelta(seconds=10), kill_thread=kill_thread)
 
     end, contest_json = get_active_contest(channel.lower())
@@ -259,7 +263,7 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
     for option in contest_json["contest"]["options"]:
         options[option["command"]]["amount"] = int(option["totalAmount"])
 
-    print(f"[{channel}, {username}] Final options before betting: {options}")
+    log.info("[%s, %s] Final options before betting: %s", channel, username, options)
     time_left = (end - datetime.datetime.now()).total_seconds()
     if time_left > 5:
         return False

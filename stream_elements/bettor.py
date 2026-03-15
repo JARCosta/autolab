@@ -6,12 +6,16 @@ import traceback
 import numpy as np
 import websocket
 
-from webapp.telegram.messaging import (
+from notifications import (
     add_telegram_log,
     send_message,
     send_telegram_log,
 )
 from stream_elements import betting, utils
+
+from logging_config import setup_logging
+
+log = setup_logging("bettor")
 
 
 def run_ws(websocket_url, on_message, on_error, on_open):
@@ -78,7 +82,7 @@ class Bettor:
         if ":Welcome, GLHF!" in message:
             ws.send(f"JOIN #{self.channel}")
         elif f"ROOMSTATE #{self.channel.lower()}" in message:
-            print(f"[{self.channel}, {self.username}] {'Bettor' if self.bettor else 'Viewer'} connected ")
+            log.info("[%s, %s] %s connected", self.channel, self.username, "Bettor" if self.bettor else "Viewer")
             self.launched_event.set()
         elif ":tmi.twitch.tv RECONNECT" in message:
             add_telegram_log(f"[{self.channel}, {self.username}] RECONNECT\n")
@@ -126,10 +130,8 @@ class Bettor:
                 send_message(f"[{self.channel}, {self.username}] Error on betting thread:\n {traceback.format_exc()}", notification=True)
 
         elif "won the contest" in message_text:
-            if self.last_contest is None:
-                return
             last_bet = betting.get_last_bet(self.channel)
-            if self.last_contest["contest"]["_id"] != last_bet["contest_id"]:
+            if self.last_contest is None or last_bet is None or self.last_contest["contest"]["_id"] != last_bet["contest_id"]:
                 return
             if message_text.split('"')[1].lower() == last_bet["bet_option"]:
                 options = {option: {"amount": int(value), "probability": None} for option, value in last_bet["options"].items()}
@@ -149,7 +151,7 @@ class Bettor:
             user = message_text.lower().split(", you have bet ")[0][1:]
             bet_amount = int(message_text.lower().split("you have bet ")[1].split(" points")[0])
             bet_option = message_text.lower().split(" points on ")[1].split(".")[0]
-            print(f"[{self.channel}, {self.username}] {sender}: {message_text}")
+            log.info("[%s, %s] %s: %s", self.channel, self.username, sender, message_text)
             if user.lower() == self.username.lower():
                 time.sleep(10)
                 _, contest = betting.get_active_contest(self.channel.lower())
@@ -182,13 +184,14 @@ class Bettor:
                 ws.send(f"PRIVMSG #{self.channel.lower()} : parece facil")
 
     def on_error(self, ws: websocket.WebSocketApp, error: str):
+        log.error("%s", error)
         if isinstance(error, (websocket._exceptions.WebSocketConnectionClosedException, TimeoutError)):
             add_telegram_log(f"[{self.channel}, {self.username}] RECONNECT ({error})\n")
             self.ws, self.wst = reconnect_ws(self.ws)
         else:
             telegram_message = f"[{self.channel}, {self.username}] {traceback.format_exc()}\n"
             send_message(telegram_message, notification=True)
-            print(telegram_message)
+            log.error("%s", telegram_message)
 
     def on_open(self, ws: websocket.WebSocketApp):
         ws.send("CAP REQ :twitch.tv/tags twitch.tv/commands")

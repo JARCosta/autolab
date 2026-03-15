@@ -7,11 +7,11 @@ import traceback
 
 import requests
 
-from webapp.telegram.messaging import send_message
+import paths
+from notifications import send_message
 
-DATA_DIR = os.path.join("data", "wallapop")
-_SEARCH_TERMS_FILE = os.path.join(DATA_DIR, "search_terms.csv")
-_DATA_FILE = os.path.join(DATA_DIR, "data.csv")
+_SEARCH_TERMS_FILE = paths.WALLAPOP_SEARCH_TERMS_FILE
+_DATA_FILE = paths.WALLAPOP_DATA_FILE
 _AFTER_URL = "https://api.wallapop.com/api/v3/search?next_page="
 
 
@@ -65,7 +65,7 @@ class SearchTerms:
 
     def __init__(self):
         self.terms = {}
-        os.makedirs(DATA_DIR, exist_ok=True)
+        os.makedirs(paths.WALLAPOP_DIR, exist_ok=True)
         if not os.path.exists(_SEARCH_TERMS_FILE):
             open(_SEARCH_TERMS_FILE, "w").close()
         with open(_SEARCH_TERMS_FILE, "r", encoding="utf-8") as file:
@@ -112,7 +112,7 @@ class SearchTerms:
 
 
 def term_func(search_str: str, category: int = None, min_price: int = None, max_price: int = None):
-    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(paths.WALLAPOP_DIR, exist_ok=True)
     while True:
         try:
             if not os.path.exists(_DATA_FILE):
@@ -124,7 +124,7 @@ def term_func(search_str: str, category: int = None, min_price: int = None, max_
                     if ";" in line:
                         old_ids.append(line.split(";")[6])
 
-            old_file = os.path.join(DATA_DIR, "data.old.csv")
+            old_file = os.path.join(paths.WALLAPOP_DIR, "data.old.csv")
             with open(old_file, "w", encoding="utf-8") as file:
                 file.writelines(old_data)
 

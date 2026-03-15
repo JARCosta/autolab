@@ -1,0 +1,15 @@
+services:
+  autolab:
+    build: .
+    container_name: autolab
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - AUTOLAB_UID=${UID:-1000}
+      - AUTOLAB_GID=${GID:-1000}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "5000:5000"
+

@@ -37,3 +37,36 @@ BETTORS = {
         "twitch": "TopGdosKwanzas",
     },
 }
+
+# Set to True to run Wallapop tracker background polling (one process per search term)
+WALLAPOP_POLL_ENABLED = False
+
+STREAMELEMENTS_BETTORS = {
+    "runah": {
+        "JRCosta": False,
+        "El_Pipow": True,
+    },
+    "prcs": {
+        "JRCosta": True,
+        "El_Pipow": False,
+    },
+    "nopeej": {
+        "JRCosta": True,
+        "El_Pipow": False,
+    },
+    "valek": {
+        "JRCosta": False,
+        "El_Pipow": True,
+    },
+    "n0vaisj": {
+        "JRCosta": True,
+        "El_Pipow": False,
+    },
+    "windoh": {
+        "JRCosta": False,
+        "El_Pipow": True,
+    },
+    "El_Pipow": {
+        "JRCosta": True,
+    },
+}
