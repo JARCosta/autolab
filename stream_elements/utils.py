@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional
 import requests
 
 import config
-from logging_config import setup_logging
 import paths
+from logging_config import setup_logging
 from notifications import send_message, send_message_threaded
 
 log = setup_logging("stream_elements.utils")

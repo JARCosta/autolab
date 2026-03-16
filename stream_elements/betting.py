@@ -16,14 +16,14 @@ import numpy as np
 import requests
 import websocket
 
+import paths
 from notifications import (
     add_telegram_log,
-    send_message_threaded,
     send_image_threaded,
+    send_message_threaded,
     send_telegram_log,
 )
 from stream_elements import utils
-import paths
 
 RESOURCES_DIR = paths.STREAMELEMENTS_RESOURCES_DIR
 DELAY_DEFAULT = 2.05

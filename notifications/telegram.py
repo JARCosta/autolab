@@ -4,8 +4,8 @@ import time
 
 import requests
 
-from logging_config import setup_logging
 import paths
+from logging_config import setup_logging
 
 _log = setup_logging("notifications.telegram")
 

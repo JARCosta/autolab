@@ -5,8 +5,8 @@ import time
 
 import requests
 
-from logging_config import setup_logging
 import paths
+from logging_config import setup_logging
 
 log = setup_logging("oauth")
 OAUTH_FILE = paths.OAUTH_FILE

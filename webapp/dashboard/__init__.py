@@ -1,11 +1,8 @@
 """Dashboard Blueprint: web UI for on-demand data (e.g. balance table at /)."""
-import config
 from flask import Blueprint, jsonify, render_template
 
-from webapp.balance_data import (
-    fetch_and_cache_balances,
-    get_balance_rows_from_cache,
-)
+import config
+from webapp.balance_data import fetch_and_cache_balances, get_balance_rows_from_cache
 
 dashboard_bp = Blueprint("dashboard", __name__, template_folder="templates")
 

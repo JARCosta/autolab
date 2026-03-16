@@ -13,11 +13,11 @@ To add a new module:
 import os
 
 from flask import Flask
+from pyngrok import ngrok
+
 from logging_config import setup_logging
 
 log = setup_logging("webapp")
-from pyngrok import ngrok
-
 
 def create_app():
     app = Flask(__name__)
@@ -43,7 +43,9 @@ def start_ngrok(port: int):
 def launch():
     """Entry point called by main.py to start the webapp process."""
     import json
+
     import requests
+
     from webapp.telegram.commands import commands
 
     port = 5000

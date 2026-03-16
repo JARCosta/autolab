@@ -6,14 +6,9 @@ import traceback
 import numpy as np
 import websocket
 
-from notifications import (
-    add_telegram_log,
-    send_message,
-    send_telegram_log,
-)
-from stream_elements import betting, utils
-
 from logging_config import setup_logging
+from notifications import add_telegram_log, send_message, send_telegram_log
+from stream_elements import betting, utils
 
 log = setup_logging("bettor")
 
