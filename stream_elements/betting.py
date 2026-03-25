@@ -249,7 +249,8 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
     if contest_id_2 is None or contest_id_1 != contest_id_2:
         return False
     options = {option["command"]: {"amount": int(option["totalAmount"]), "probability": None} for option in contest_json["contest"]["options"]}
-    utils.compute_probabilities(channel, options)
+    # TODO: Re-enable this when Faceit API is fixed
+    # utils.compute_probabilities(channel, options)
     if any(option["probability"] is None for option in options.values()):
         for option in options.values():
             option["probability"] = 1 / len(options)

@@ -2,12 +2,14 @@
 import threading
 import time
 import traceback
+from contextlib import suppress
 
 import numpy as np
 import websocket
 
 from logging_config import setup_logging
 from notifications import add_telegram_log, send_message, send_telegram_log
+from storage.balances import refresh_and_record_balance
 from stream_elements import betting, utils
 
 log = setup_logging("bettor")
@@ -141,6 +143,10 @@ class Bettor:
                 send_telegram_log()
                 send_message(telegram_message, notification=True)
             self.last_contest = None
+            # StreamElements has settled the contest; balance may have changed.
+            with suppress(Exception):
+                time.sleep(2)
+                refresh_and_record_balance(self.channel, self.username)
 
         elif ", you have bet" in message_text:
             user = message_text.lower().split(", you have bet ")[0][1:]
@@ -153,6 +159,9 @@ class Bettor:
                 if contest:
                     last_bet = betting.contest_to_bet(contest, bet_option, bet_amount)
                     betting.save_last_bet(self.channel, last_bet)
+                # Bet placement normally changes the user's balance quickly.
+                with suppress(Exception):
+                    refresh_and_record_balance(self.channel, self.username)
 
         elif mentioned and ", there is no contest currently running" in message_text:
             telegram_message = f"[{self.channel}, {self.username}] {sender}: {message_text}\n"
