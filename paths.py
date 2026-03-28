@@ -21,6 +21,9 @@ WALLAPOP_DIR = os.path.join(DATA_DIR, "wallapop")
 WALLAPOP_SEARCH_TERMS_FILE = os.path.join(WALLAPOP_DIR, "search_terms.csv")
 WALLAPOP_DATA_FILE = os.path.join(WALLAPOP_DIR, "data.csv")
 
+# Hardware monitor (CPU load, clock, temperature time series)
+HARDWARE_DB = os.path.join(DATA_DIR, "hardware.db")
+
 # StreamElements betting (per-channel state, variable delay, message logs)
 STREAMELEMENTS_RESOURCES_DIR = os.path.join(os.path.dirname(__file__), "stream_elements", "resources")
 STREAMELEMENTS_LAST_BET_FILE = os.path.join(STREAMELEMENTS_RESOURCES_DIR, "last_bet.json")

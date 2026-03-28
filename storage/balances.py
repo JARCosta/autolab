@@ -190,22 +190,52 @@ def get_balance_rows():
     ]
 
 
-def get_balance_history(channel: str, bettor: str, limit: int = 100):
-    """Return time series of balances for a given (channel, bettor), oldest first."""
+def get_balance_history(
+    channel: str,
+    bettor: str,
+    *,
+    since_iso: str | None = None,
+    last_n: int | None = None,
+) -> list[dict]:
+    """Return time series of balances for a given (channel, bettor), oldest first.
+
+    Rows are kept for as long as the DB exists; each snapshot is written when the
+    balance changes (see ``record_balance_snapshot`` / ``fetch_and_cache_balances``).
+
+    ``since_iso``: if set, only rows with ``updated_at >= since_iso`` (ISO-8601 UTC).
+    ``last_n``: if set, only the *most recent* N points within the filter (by time).
+    """
     _init_db()
+    where = "channel = ? AND bettor = ?"
+    params: list = [channel, bettor]
+    if since_iso:
+        where += " AND updated_at >= ?"
+        params.append(since_iso)
+
     with sqlite3.connect(paths.BALANCE_CACHE_DB) as conn:
         conn.row_factory = sqlite3.Row
-        cur = conn.execute(
-            """
-            SELECT balance, updated_at
-            FROM balance_history
-            WHERE channel = ? AND bettor = ?
-            ORDER BY updated_at ASC
-            """,
-            (channel, bettor),
-        )
+        if last_n is not None and last_n > 0:
+            cur = conn.execute(
+                f"""
+                SELECT balance, updated_at FROM (
+                    SELECT balance, updated_at FROM balance_history
+                    WHERE {where}
+                    ORDER BY updated_at DESC
+                    LIMIT ?
+                ) ORDER BY updated_at ASC
+                """,
+                (*params, last_n),
+            )
+        else:
+            cur = conn.execute(
+                f"""
+                SELECT balance, updated_at
+                FROM balance_history
+                WHERE {where}
+                ORDER BY updated_at ASC
+                """,
+                params,
+            )
         rows = cur.fetchall()
-    if limit and len(rows) > limit:
-        rows = rows[-limit:]
     return [{"balance": r["balance"], "updated_at": r["updated_at"]} for r in rows]
 

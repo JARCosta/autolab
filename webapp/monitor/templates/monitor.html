@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoLab — Hardware Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    .app-shell {
+      display: flex;
+      max-width: 1100px;
+      margin: 0 auto;
+      min-height: 100vh;
+      align-items: flex-start;
+    }
+    .sidebar {
+      width: 200px;
+      flex-shrink: 0;
+      padding: 1rem 0.75rem 1rem 1rem;
+      border-right: 1px solid #2a2a2a;
+      position: sticky;
+      top: 0;
+      align-self: flex-start;
+      max-height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #666;
+      margin-bottom: 0.65rem;
+    }
+    .sidebar label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: #bbb;
+      margin-bottom: 0.45rem;
+      cursor: pointer;
+    }
+    .sidebar label:hover { color: #e0e0e0; }
+    .sidebar input { accent-color: #4caf50; cursor: pointer; }
+
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 1.5rem 1rem 1.5rem 0.5rem;
+    }
+    nav a {
+      color: #888;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    nav a:hover { color: #bbb; }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0.75rem 0 1rem;
+    }
+
+    .device-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .device-row label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+    }
+    .device-row select {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #e0e0e0;
+      padding: 0.4rem 0.75rem;
+      border-radius: 0.35rem;
+      font-size: 0.85rem;
+      min-width: 14rem;
+      cursor: pointer;
+    }
+
+    .readings {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .reading {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      text-align: center;
+    }
+    .reading-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #888;
+      margin-bottom: 0.2rem;
+    }
+    .reading-value {
+      font-size: 1.05rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #e0e0e0;
+    }
+    .reading-sep { color: #555; font-weight: 400; }
+    .gpu-banner {
+      font-size: 0.75rem;
+      color: #666;
+      margin-bottom: 0.75rem;
+      padding: 0.35rem 0.5rem;
+      background: #141414;
+      border-radius: 0.35rem;
+      border: 1px solid #252525;
+    }
+    .gpu-banner.ok { color: #81c784; border-color: #2e4a32; }
+    .gpu-banner.warn { color: #888; }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 1rem;
+    }
+    .range-btn {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #aaa;
+      padding: 0.3rem 0.75rem;
+      border-radius: 0.35rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .range-btn:hover { background: #222; border-color: #555; }
+    .range-btn.active {
+      background: #2a2a2a;
+      border-color: #4caf50;
+      color: #e0e0e0;
+    }
+
+    .chart-box {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .chart-box h2 {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #999;
+      margin-bottom: 0.5rem;
+    }
+    .chart-wrap {
+      position: relative;
+      height: 150px;
+    }
+    .status {
+      font-size: 0.75rem;
+      color: #555;
+      margin-top: 0.75rem;
+      text-align: right;
+    }
+    .note {
+      font-size: 0.7rem;
+      color: #555;
+      line-height: 1.4;
+      margin-top: 0.75rem;
+      max-width: 42rem;
+    }
+
+    @media (max-width: 720px) {
+      .app-shell { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #2a2a2a;
+        position: relative;
+        max-height: none;
+      }
+      .main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h2>Charts</h2>
+      <label><input type="checkbox" data-chart="load" checked> CPU + GPU load</label>
+      <label><input type="checkbox" data-chart="clock" checked> CPU + GPU clock</label>
+      <label><input type="checkbox" data-chart="temp" checked> CPU + GPU temp</label>
+      <label><input type="checkbox" data-chart="ram_swap" checked> RAM + swap</label>
+      <label><input type="checkbox" data-chart="gpu_mem" checked> VRAM</label>
+      <label><input type="checkbox" data-chart="pcie" checked> PCIe MB/s</label>
+    </aside>
+
+    <div class="main">
+      <nav><a href="/">&larr; AutoLab</a></nav>
+      <h1>Hardware Monitor</h1>
+
+      <div class="device-row">
+        <label for="device-select">Device</label>
+        <select id="device-select" aria-label="Device"></select>
+      </div>
+
+      <p class="gpu-banner warn" id="gpu-status" role="status">GPU: checking&hellip;</p>
+
+      <div class="readings">
+        <div class="reading"><div class="reading-label">Load CPU / GPU</div><div class="reading-value" id="cur-load"><span id="cur-load-cpu">&mdash;</span><span class="reading-sep"> / </span><span id="cur-load-gpu">&mdash;</span></div></div>
+        <div class="reading"><div class="reading-label">Clock (GHz)</div><div class="reading-value" id="cur-clock"><span id="cur-clock-cpu">&mdash;</span><span class="reading-sep"> / </span><span id="cur-clock-gpu">&mdash;</span></div></div>
+        <div class="reading"><div class="reading-label">Temp CPU / GPU</div><div class="reading-value" id="cur-temp"><span id="cur-temp-cpu">&mdash;</span><span class="reading-sep"> / </span><span id="cur-temp-gpu">&mdash;</span></div></div>
+        <div class="reading"><div class="reading-label">RAM</div><div class="reading-value" id="cur-ram">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">Swap</div><div class="reading-value" id="cur-swap">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">VRAM</div><div class="reading-value" id="cur-gmem">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">PCIe host &rarr; GPU</div><div class="reading-value" id="cur-pcie-tx">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">PCIe GPU &rarr; host</div><div class="reading-value" id="cur-pcie-rx">&mdash;</div></div>
+      </div>
+
+      <div class="controls">
+        <button type="button" class="range-btn" data-minutes="15">15 min</button>
+        <button type="button" class="range-btn active" data-minutes="60">1 h</button>
+        <button type="button" class="range-btn" data-minutes="360">6 h</button>
+        <button type="button" class="range-btn" data-minutes="1440">24 h</button>
+        <button type="button" class="range-btn" data-minutes="10080">7 d</button>
+      </div>
+
+      <div class="chart-box" data-chart-panel="load">
+        <h2>CPU and GPU load (%)</h2>
+        <div class="chart-wrap"><canvas id="chart-load"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="clock">
+        <h2>CPU and GPU clock (GHz)</h2>
+        <div class="chart-wrap"><canvas id="chart-clock"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="temp">
+        <h2>CPU and GPU temperature (&deg;C)</h2>
+        <div class="chart-wrap"><canvas id="chart-temp"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="ram_swap">
+        <h2>RAM and swap used (%)</h2>
+        <div class="chart-wrap"><canvas id="chart-ram-swap"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="gpu_mem">
+        <h2>VRAM Used (%)</h2>
+        <div class="chart-wrap"><canvas id="chart-gpu-mem"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="pcie">
+        <h2>PCIe throughput (MB/s)</h2>
+        <p style="font-size:0.7rem;color:#666;margin-bottom:0.35rem">Green: host &rarr; GPU (TX). Red: GPU &rarr; host (RX). Often 0 when idle.</p>
+        <div class="chart-wrap"><canvas id="chart-pcie"></canvas></div>
+      </div>
+
+      <p class="status" id="status"></p>
+      <p class="note">
+        Collection: <strong>psutil</strong> for CPU, RAM, swap, and CPU temperature where the OS exposes them.
+        GPU load, VRAM, GPU temperature, clocks, and PCIe throughput use <strong>nvidia-smi</strong> when available.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var currentMinutes = 60;
+      var currentDevice = '';
+      try { currentDevice = localStorage.getItem('autolab_hw_device') || ''; } catch (e) {}
+
+      var gridColor = 'rgba(255,255,255,0.06)';
+      var tickColor = '#888';
+
+      function mhzToGhz(m) {
+        return m != null ? m / 1000 : null;
+      }
+
+      function chartOptsSingle(unit) {
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          interaction: { intersect: false, mode: 'index' },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                tooltipFormat: 'HH:mm:ss',
+                displayFormats: { second: 'HH:mm:ss', minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' }
+              },
+              grid: { color: gridColor },
+              ticks: { color: tickColor, maxTicksLimit: 8, font: { size: 10 } }
+            },
+            y: {
+              suggestedMin: 0,
+              grid: { color: gridColor },
+              ticks: { color: tickColor, font: { size: 10 } }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  return ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) + unit : '';
+                }
+              }
+            }
+          }
+        };
+      }
+
+      function chartOptsDual(fmt) {
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          interaction: { intersect: false, mode: 'index' },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                tooltipFormat: 'HH:mm:ss',
+                displayFormats: { second: 'HH:mm:ss', minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' }
+              },
+              grid: { color: gridColor },
+              ticks: { color: tickColor, maxTicksLimit: 8, font: { size: 10 } }
+            },
+            y: {
+              suggestedMin: 0,
+              grid: { color: gridColor },
+              ticks: { color: tickColor, font: { size: 10 } }
+            }
+          },
+          plugins: {
+            legend: { display: true, labels: { color: '#888', font: { size: 10 }, boxWidth: 10 } },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  var y = ctx.parsed.y;
+                  if (y == null) return ctx.dataset.label + ': —';
+                  return ctx.dataset.label + ': ' + fmt(y);
+                }
+              }
+            }
+          }
+        };
+      }
+
+      function makeDualChart(id, c1, c2, lab1, lab2, fmt) {
+        return new Chart(document.getElementById(id), {
+          type: 'line',
+          data: {
+            datasets: [
+              {
+                label: lab1,
+                borderColor: c1,
+                backgroundColor: c1 + '18',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.25,
+                data: []
+              },
+              {
+                label: lab2,
+                borderColor: c2,
+                backgroundColor: c2 + '18',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.25,
+                data: []
+              }
+            ]
+          },
+          options: chartOptsDual(fmt)
+        });
+      }
+
+      function makeChart(id, color, unit) {
+        return new Chart(document.getElementById(id), {
+          type: 'line',
+          data: {
+            datasets: [{
+              borderColor: color,
+              backgroundColor: color + '18',
+              borderWidth: 1.5,
+              pointRadius: 0,
+              fill: true,
+              tension: 0.25,
+              data: []
+            }]
+          },
+          options: chartOptsSingle(unit)
+        });
+      }
+
+      function makePcieChart(id) {
+        return new Chart(document.getElementById(id), {
+          type: 'line',
+          data: {
+            datasets: [
+              {
+                label: 'TX (host\u2192GPU)',
+                borderColor: '#43a047',
+                backgroundColor: '#43a04712',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.25,
+                data: []
+              },
+              {
+                label: 'RX (GPU\u2192host)',
+                borderColor: '#e53935',
+                backgroundColor: '#e5393512',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.25,
+                data: []
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { intersect: false, mode: 'index' },
+            scales: {
+              x: {
+                type: 'time',
+                time: { tooltipFormat: 'HH:mm:ss', displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' } },
+                grid: { color: gridColor },
+                ticks: { color: tickColor, maxTicksLimit: 8, font: { size: 10 } }
+              },
+              y: {
+                suggestedMin: 0,
+                grid: { color: gridColor },
+                ticks: { color: tickColor, font: { size: 10 } }
+              }
+            },
+            plugins: {
+              legend: { display: true, labels: { color: '#888', font: { size: 10 } } },
+              tooltip: {
+                callbacks: {
+                  label: function (ctx) {
+                    var v = ctx.parsed.y;
+                    return ctx.dataset.label + ': ' + (v != null ? v.toFixed(2) + ' MB/s' : '');
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      function pctFmt(y) { return y.toFixed(1) + '%'; }
+      function ghzFmt(y) { return y.toFixed(3) + ' GHz'; }
+      function degFmt(y) { return y.toFixed(1) + ' °C'; }
+
+      function cpuLineColor(v) {
+        if (v === 'intel') return '#42a5f5';
+        if (v === 'amd') return '#e53935';
+        return '#90a4ae';
+      }
+      function gpuLineColor(v) {
+        if (v === 'nvidia') return '#43a047';
+        if (v === 'amd') return '#e53935';
+        return '#ec407a';
+      }
+
+      function applyVendorColors(latest) {
+        var absent = '#757575';
+        var cv = (latest && latest.cpu_vendor) || 'unknown';
+        var gv = (latest && latest.gpu_vendor) || 'unknown';
+        var cc = cpuLineColor(cv);
+        var gc = gpuLineColor(gv);
+
+        function ok(field) {
+          return latest != null && latest[field] != null;
+        }
+        function paintSeries(chart, i, color) {
+          chart.data.datasets[i].borderColor = color;
+          chart.data.datasets[i].backgroundColor = color + '18';
+        }
+
+        paintSeries(chartLoad, 0, ok('cpu_load') ? cc : absent);
+        paintSeries(chartLoad, 1, ok('gpu_util') ? gc : absent);
+        chartLoad.update('none');
+
+        paintSeries(chartClock, 0, ok('cpu_clock') ? cc : absent);
+        paintSeries(chartClock, 1, ok('gpu_clock') ? gc : absent);
+        chartClock.update('none');
+
+        paintSeries(chartTemp, 0, ok('cpu_temp') ? cc : absent);
+        paintSeries(chartTemp, 1, ok('gpu_temp') ? gc : absent);
+        chartTemp.update('none');
+
+        var ramGreen = '#43a047';
+        var swapRed = '#e53935';
+        chartRamSwap.data.datasets[0].borderColor = ramGreen;
+        chartRamSwap.data.datasets[0].backgroundColor = ramGreen + '18';
+        chartRamSwap.data.datasets[1].borderColor = swapRed;
+        chartRamSwap.data.datasets[1].backgroundColor = swapRed + '18';
+        chartRamSwap.update('none');
+
+        var gmemColor = ok('gpu_mem_percent') ? gc : absent;
+        chartGmem.data.datasets[0].borderColor = gmemColor;
+        chartGmem.data.datasets[0].backgroundColor = gmemColor + '18';
+        chartGmem.update('none');
+
+        function setElColor(id, color) {
+          var el = document.getElementById(id);
+          if (el) el.style.color = color;
+        }
+        setElColor('cur-load-cpu', ok('cpu_load') ? cc : absent);
+        setElColor('cur-load-gpu', ok('gpu_util') ? gc : absent);
+        setElColor('cur-clock-cpu', ok('cpu_clock') ? cc : absent);
+        setElColor('cur-clock-gpu', ok('gpu_clock') ? gc : absent);
+        setElColor('cur-temp-cpu', ok('cpu_temp') ? cc : absent);
+        setElColor('cur-temp-gpu', ok('gpu_temp') ? gc : absent);
+        setElColor('cur-ram', '#43a047');
+        setElColor('cur-swap', '#e53935');
+        setElColor('cur-gmem', ok('gpu_mem_percent') ? gc : absent);
+        setElColor('cur-pcie-tx', '#43a047');
+        setElColor('cur-pcie-rx', '#e53935');
+      }
+
+      var chartLoad = makeDualChart('chart-load', '#42a5f5', '#43a047', 'CPU', 'GPU', pctFmt);
+      var chartClock = makeDualChart('chart-clock', '#42a5f5', '#43a047', 'CPU', 'GPU', ghzFmt);
+      var chartTemp = makeDualChart('chart-temp', '#42a5f5', '#43a047', 'CPU', 'GPU', degFmt);
+      var chartRamSwap = makeDualChart('chart-ram-swap', '#43a047', '#e53935', 'RAM', 'Swap', pctFmt);
+      var chartGmem = makeChart('chart-gpu-mem', '#43a047', '%');
+      var chartPcie = makePcieChart('chart-pcie');
+
+      var charts = {
+        load: chartLoad,
+        clock: chartClock,
+        temp: chartTemp,
+        ram_swap: chartRamSwap,
+        gpu_mem: chartGmem,
+        pcie: chartPcie
+      };
+
+      function setData(chart, metrics, key) {
+        chart.data.datasets[0].data = metrics
+          .filter(function (m) { return m[key] != null; })
+          .map(function (m) { return { x: new Date(m.timestamp), y: m[key] }; });
+        chart.update();
+      }
+
+      function setDualData(chart, metrics, key1, key2, mapY1, mapY2) {
+        mapY1 = mapY1 || function (y) { return y; };
+        mapY2 = mapY2 || function (y) { return y; };
+        chart.data.datasets[0].data = metrics
+          .filter(function (m) { return m[key1] != null; })
+          .map(function (m) { return { x: new Date(m.timestamp), y: mapY1(m[key1]) }; });
+        chart.data.datasets[1].data = metrics
+          .filter(function (m) { return m[key2] != null; })
+          .map(function (m) { return { x: new Date(m.timestamp), y: mapY2(m[key2]) }; });
+        chart.update();
+      }
+
+      function setPcieData(metrics) {
+        chartPcie.data.datasets[0].data = metrics
+          .filter(function (m) { return m.pcie_tx_mbps != null; })
+          .map(function (m) { return { x: new Date(m.timestamp), y: m.pcie_tx_mbps }; });
+        chartPcie.data.datasets[1].data = metrics
+          .filter(function (m) { return m.pcie_rx_mbps != null; })
+          .map(function (m) { return { x: new Date(m.timestamp), y: m.pcie_rx_mbps }; });
+        chartPcie.update();
+      }
+
+      function loadToggles() {
+        try {
+          var raw = localStorage.getItem('autolab_hw_chart_toggles');
+          if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return null;
+      }
+
+      function saveToggles(obj) {
+        try { localStorage.setItem('autolab_hw_chart_toggles', JSON.stringify(obj)); } catch (e) {}
+      }
+
+      function applyChartVisibility() {
+        var t = loadToggles();
+        document.querySelectorAll('[data-chart-panel]').forEach(function (panel) {
+          var key = panel.getAttribute('data-chart-panel');
+          var on = t && Object.prototype.hasOwnProperty.call(t, key) ? t[key] : true;
+          panel.style.display = on ? '' : 'none';
+        });
+        document.querySelectorAll('.sidebar input[data-chart]').forEach(function (inp) {
+          var key = inp.getAttribute('data-chart');
+          if (t && Object.prototype.hasOwnProperty.call(t, key)) inp.checked = t[key];
+        });
+      }
+
+      document.querySelectorAll('.sidebar input[data-chart]').forEach(function (inp) {
+        inp.addEventListener('change', function () {
+          var o = loadToggles() || {};
+          o[inp.getAttribute('data-chart')] = inp.checked;
+          saveToggles(o);
+          applyChartVisibility();
+        });
+      });
+      applyChartVisibility();
+
+      var elStatus = document.getElementById('status');
+      var elDevice = document.getElementById('device-select');
+
+      function mergeDeviceOptions(devices) {
+        if (!devices || !devices.length) return;
+        var seen = {};
+        for (var i = 0; i < elDevice.options.length; i++) {
+          seen[elDevice.options[i].value] = true;
+        }
+        devices.forEach(function (d) {
+          if (d && !seen[d]) {
+            var opt = document.createElement('option');
+            opt.value = d;
+            opt.textContent = d;
+            elDevice.appendChild(opt);
+            seen[d] = true;
+          }
+        });
+        if (currentDevice && seen[currentDevice]) {
+          elDevice.value = currentDevice;
+        } else if (devices.length) {
+          elDevice.value = devices[0];
+          currentDevice = devices[0];
+        }
+        try { localStorage.setItem('autolab_hw_device', currentDevice); } catch (e) {}
+      }
+
+      function fetchData() {
+        var dev = elDevice.value || currentDevice || '';
+        var q = '/api/monitor/history?minutes=' + currentMinutes + '&max_points=4000';
+        if (dev) q += '&device=' + encodeURIComponent(dev);
+        fetch(q)
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.devices) mergeDeviceOptions(data.devices);
+            var m = data.metrics || [];
+            var latest = data.latest;
+            setDualData(chartLoad, m, 'cpu_load', 'gpu_util');
+            setDualData(chartClock, m, 'cpu_clock', 'gpu_clock', mhzToGhz, mhzToGhz);
+            setDualData(chartTemp, m, 'cpu_temp', 'gpu_temp');
+            setDualData(chartRamSwap, m, 'ram_percent', 'swap_percent');
+            setData(chartGmem, m, 'gpu_mem_percent');
+            setPcieData(m);
+
+            var elGpuBanner = document.getElementById('gpu-status');
+            if (latest) {
+              function setPair(cpuId, gpuId, a, b, af, bf) {
+                document.getElementById(cpuId).textContent = a != null ? af(a) : '\u2014';
+                document.getElementById(gpuId).textContent = b != null ? bf(b) : '\u2014';
+              }
+              setPair(
+                'cur-load-cpu', 'cur-load-gpu',
+                latest.cpu_load, latest.gpu_util,
+                function (x) { return x.toFixed(1) + '%'; },
+                function (x) { return x.toFixed(0) + '%'; }
+              );
+              setPair(
+                'cur-clock-cpu', 'cur-clock-gpu',
+                latest.cpu_clock, latest.gpu_clock,
+                function (x) { return mhzToGhz(x).toFixed(3) + ' GHz'; },
+                function (x) { return mhzToGhz(x).toFixed(3) + ' GHz'; }
+              );
+              setPair(
+                'cur-temp-cpu', 'cur-temp-gpu',
+                latest.cpu_temp, latest.gpu_temp,
+                function (x) { return x.toFixed(1) + '\u00b0C'; },
+                function (x) { return x.toFixed(1) + '\u00b0C'; }
+              );
+              document.getElementById('cur-ram').textContent =
+                latest.ram_percent != null ? latest.ram_percent.toFixed(1) + '%' : '\u2014';
+              document.getElementById('cur-swap').textContent =
+                latest.swap_percent != null ? latest.swap_percent.toFixed(1) + '%' : '\u2014';
+              document.getElementById('cur-gmem').textContent =
+                latest.gpu_mem_percent != null ? latest.gpu_mem_percent.toFixed(1) + '%' : '\u2014';
+              document.getElementById('cur-pcie-tx').textContent =
+                latest.pcie_tx_mbps != null ? latest.pcie_tx_mbps.toFixed(2) + ' MB/s' : '\u2014';
+              document.getElementById('cur-pcie-rx').textContent =
+                latest.pcie_rx_mbps != null ? latest.pcie_rx_mbps.toFixed(2) + ' MB/s' : '\u2014';
+
+              applyVendorColors(latest);
+
+              var gpuLive = latest.gpu_util != null || latest.gpu_temp != null || latest.gpu_clock != null;
+              elGpuBanner.className = 'gpu-banner ' + (gpuLive ? 'ok' : 'warn');
+              elGpuBanner.textContent = gpuLive
+                ? 'GPU: sensors active (NVIDIA data in this sample).'
+                : 'GPU: no NVIDIA metrics in latest sample (install drivers / nvidia-smi on the host that pushes metrics).';
+            } else {
+              applyVendorColors(null);
+              elGpuBanner.className = 'gpu-banner warn';
+              elGpuBanner.textContent = 'GPU: no data yet for this device.';
+            }
+            elStatus.textContent = 'Updated ' + new Date().toLocaleTimeString();
+          })
+          .catch(function () { elStatus.textContent = 'Update failed'; });
+      }
+
+      elDevice.addEventListener('change', function () {
+        currentDevice = elDevice.value;
+        try { localStorage.setItem('autolab_hw_device', currentDevice); } catch (e) {}
+        fetchData();
+      });
+
+      fetchData();
+      setInterval(fetchData, 10000);
+
+      document.querySelectorAll('.range-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.querySelectorAll('.range-btn').forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          currentMinutes = parseInt(btn.getAttribute('data-minutes'), 10);
+          fetchData();
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
