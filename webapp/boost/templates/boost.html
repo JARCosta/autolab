@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoLab — CS2 Custom</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+
+    /* ── notification banner ── */
+    .notif {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .notif-inner {
+      margin-top: 0.75rem;
+      padding: 0.5rem 1.25rem;
+      border-radius: 0.4rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      opacity: 0;
+      transform: translateY(-1rem);
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: auto;
+    }
+    .notif-inner.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .notif-inner.warn {
+      background: #3e2e0e;
+      border: 1px solid #6b4f1a;
+      color: #ffc107;
+    }
+    .notif-inner.error {
+      background: #3e1010;
+      border: 1px solid #6b1a1a;
+      color: #f44336;
+    }
+    .notif-inner.ok {
+      background: #0e3e14;
+      border: 1px solid #1a6b28;
+      color: #4caf50;
+    }
+
+    /* ── shell ── */
+    .app-shell {
+      display: flex;
+      max-width: 1100px;
+      margin: 0 auto;
+      min-height: 100vh;
+      align-items: flex-start;
+    }
+
+    /* ── sidebar / roster ── */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      padding: 1rem 0.75rem 1rem 1rem;
+      border-right: 1px solid #2a2a2a;
+      position: sticky;
+      top: 0;
+      align-self: flex-start;
+      max-height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .create-btn {
+      width: 100%;
+      padding: 0.55rem 0;
+      border-radius: 0.4rem;
+      border: 1px solid #4caf50;
+      background: rgba(76, 175, 80, 0.12);
+      color: #4caf50;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 0.75rem;
+    }
+    .create-btn:hover { background: rgba(76, 175, 80, 0.22); }
+    .create-btn:disabled {
+      border-color: #333;
+      background: transparent;
+      color: #555;
+      cursor: default;
+    }
+    .create-count {
+      font-weight: 400;
+      opacity: 0.7;
+      font-size: 0.72rem;
+    }
+
+    .sidebar h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #666;
+      margin-bottom: 0.5rem;
+    }
+
+    .roster {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.3rem;
+      border-radius: 0.3rem;
+      cursor: pointer;
+      transition: background 0.1s;
+      user-select: none;
+    }
+    .player-row:hover { background: #1a1a1a; }
+    .player-row.selected { background: rgba(76, 175, 80, 0.08); }
+
+    .player-row input[type="checkbox"] {
+      accent-color: #4caf50;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .player-rank {
+      font-size: 0.65rem;
+      color: #555;
+      width: 1.1rem;
+      text-align: right;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .player-name {
+      flex: 1;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-elo {
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #aaa;
+      flex-shrink: 0;
+    }
+    .player-record {
+      font-size: 0.6rem;
+      color: #666;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .add-row {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #222;
+    }
+    .add-row input {
+      flex: 1;
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      color: #e0e0e0;
+      padding: 0.35rem 0.5rem;
+      border-radius: 0.3rem;
+      font-size: 0.78rem;
+      outline: none;
+    }
+    .add-row input:focus { border-color: #4caf50; }
+    .add-row input::placeholder { color: #555; }
+    .add-row button {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #aaa;
+      padding: 0.35rem 0.65rem;
+      border-radius: 0.3rem;
+      cursor: pointer;
+      font-size: 0.78rem;
+      transition: border-color 0.15s;
+      white-space: nowrap;
+    }
+    .add-row button:hover { border-color: #4caf50; color: #e0e0e0; }
+
+    /* ── main content ── */
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 1.5rem 1rem 1.5rem 1.25rem;
+    }
+    nav a {
+      color: #888;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    nav a:hover { color: #bbb; }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0.75rem 0 1rem;
+    }
+    .empty-state {
+      color: #555;
+      font-size: 0.85rem;
+      padding: 2rem 0;
+      text-align: center;
+    }
+
+    /* ── match card ── */
+    .match-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 0.5rem;
+      margin-bottom: 0.65rem;
+      overflow: hidden;
+    }
+    .match-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid #222;
+    }
+    .match-title {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #ccc;
+    }
+    .match-date {
+      font-size: 0.68rem;
+      color: #666;
+    }
+
+    .match-body { padding: 0.65rem 0.85rem; }
+
+    .match-score-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      margin-bottom: 0.6rem;
+    }
+    .match-team-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+    .match-team-label.a { color: #42a5f5; }
+    .match-team-label.b { color: #e53935; }
+    .match-score {
+      font-size: 1.3rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.15em;
+      color: #e0e0e0;
+    }
+    .match-score .win { color: #4caf50; }
+    .match-score .loss { color: #f44336; }
+    .match-score .pending { color: #555; }
+    .match-pts {
+      font-size: 0.6rem;
+      color: #555;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .match-teams {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+    .team-col { }
+    .team-col-header {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #666;
+      margin-bottom: 0.3rem;
+      font-weight: 600;
+    }
+    .team-col.a .team-col-header { color: #42a5f5; }
+    .team-col.b .team-col-header { color: #e53935; }
+    .team-player {
+      font-size: 0.78rem;
+      color: #bbb;
+      padding: 0.12rem 0;
+    }
+
+    /* pending match action buttons */
+    .match-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.6rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #222;
+    }
+    .match-actions button {
+      padding: 0.3rem 0.7rem;
+      border-radius: 0.3rem;
+      border: 1px solid #333;
+      background: #141414;
+      color: #aaa;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .match-actions button:hover { background: #222; border-color: #555; }
+    .match-actions .btn-win-a {
+      border-color: #2a5a2e;
+      color: #4caf50;
+    }
+    .match-actions .btn-win-a:hover {
+      background: rgba(76, 175, 80, 0.1);
+      border-color: #4caf50;
+    }
+    .match-actions .btn-win-b {
+      border-color: #5a2a2a;
+      color: #f44336;
+    }
+    .match-actions .btn-win-b:hover {
+      background: rgba(244, 67, 54, 0.1);
+      border-color: #f44336;
+    }
+    .match-actions .btn-cancel {
+      margin-left: auto;
+      color: #777;
+    }
+
+    /* ── stats dropdown ── */
+    .stats-toggle {
+      display: block;
+      width: 100%;
+      padding: 0.4rem 0.85rem;
+      background: none;
+      border: none;
+      border-top: 1px solid #222;
+      color: #666;
+      font-size: 0.7rem;
+      cursor: pointer;
+      text-align: left;
+      transition: color 0.1s;
+    }
+    .stats-toggle:hover { color: #aaa; }
+    .stats-toggle .arrow {
+      display: inline-block;
+      transition: transform 0.2s;
+      margin-right: 0.3rem;
+    }
+    .stats-toggle.open .arrow { transform: rotate(90deg); }
+
+    .stats-panel {
+      display: none;
+      padding: 0 0.85rem 0.65rem;
+    }
+    .stats-panel.open { display: block; }
+
+    .stats-team-label {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #555;
+      margin: 0.5rem 0 0.2rem;
+      font-weight: 600;
+    }
+    .stats-team-label.a { color: #42a5f5; }
+    .stats-team-label.b { color: #e53935; }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.72rem;
+      margin-bottom: 0.3rem;
+    }
+    .stats-table th {
+      text-align: left;
+      font-weight: 600;
+      color: #666;
+      padding: 0.2rem 0.35rem;
+      border-bottom: 1px solid #222;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .stats-table th:not(:first-child) { text-align: center; }
+    .stats-table td {
+      padding: 0.2rem 0.35rem;
+      color: #aaa;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .stats-table td:not(:first-child) { text-align: center; }
+    .stats-table input {
+      width: 3.2rem;
+      background: #141414;
+      border: 1px solid #252525;
+      color: #ccc;
+      text-align: center;
+      padding: 0.15rem;
+      border-radius: 0.2rem;
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+      outline: none;
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+    .stats-table input::-webkit-outer-spin-button,
+    .stats-table input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .stats-table input:focus { border-color: #4caf50; }
+    .stats-table input::placeholder { color: #444; }
+
+    /* ── responsive ── */
+    @media (max-width: 720px) {
+      .app-shell { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #2a2a2a;
+        position: relative;
+        max-height: none;
+      }
+      .main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="notif"><div class="notif-inner" id="notif"></div></div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <button class="create-btn" id="create-btn" disabled>
+        Create Custom <span class="create-count" id="create-count"></span>
+      </button>
+
+      <h2>Players</h2>
+      <div class="roster" id="roster"></div>
+      <div class="add-row">
+        <input type="text" id="add-name" placeholder="New player" maxlength="24">
+        <button id="add-btn">+ Add</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <nav><a href="/">&larr; AutoLab</a></nav>
+      <h1>CS2 Custom</h1>
+      <div id="matches"></div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var selected = {};
+    var players = [];
+    var allMatches = [];
+    var notifTimer = null;
+
+    var elRoster   = document.getElementById('roster');
+    var elMatches  = document.getElementById('matches');
+    var elCreateBtn = document.getElementById('create-btn');
+    var elCount    = document.getElementById('create-count');
+    var elNotif    = document.getElementById('notif');
+    var elAddName  = document.getElementById('add-name');
+    var elAddBtn   = document.getElementById('add-btn');
+
+    /* ── notifications ── */
+    function notify(msg, type) {
+      type = type || 'warn';
+      elNotif.textContent = msg;
+      elNotif.className = 'notif-inner ' + type + ' show';
+      clearTimeout(notifTimer);
+      notifTimer = setTimeout(function () {
+        elNotif.classList.remove('show');
+      }, 3500);
+    }
+
+    /* ── helpers ── */
+    function postJSON(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json(); });
+    }
+
+    function fmtDate(iso) {
+      var d = new Date(iso);
+      var mo = d.toLocaleString(undefined, { month: 'short' });
+      var day = d.getDate();
+      var h = String(d.getHours()).padStart(2, '0');
+      var m = String(d.getMinutes()).padStart(2, '0');
+      return mo + ' ' + day + ', ' + h + ':' + m;
+    }
+
+    function playerNameById(id) {
+      for (var i = 0; i < players.length; i++) {
+        if (players[i].id === id) return players[i].name;
+      }
+      return 'Unknown';
+    }
+
+    /* ── selection state ── */
+    function updateCreateBtn() {
+      var ids = Object.keys(selected);
+      var n = ids.length;
+      elCount.textContent = n > 0 ? '(' + n + ')' : '';
+      elCreateBtn.disabled = n < 2;
+    }
+
+    /* ── roster render ── */
+    function renderRoster() {
+      var html = '';
+      for (var i = 0; i < players.length; i++) {
+        var p = players[i];
+        var sel = !!selected[p.id];
+        var record = p.wins + '-' + p.draws + '-' + p.losses;
+        html += '<label class="player-row' + (sel ? ' selected' : '') + '" data-id="' + p.id + '">'
+          + '<input type="checkbox"' + (sel ? ' checked' : '') + '>'
+          + '<span class="player-rank">' + (i + 1) + '</span>'
+          + '<span class="player-name">' + esc(p.name) + '</span>'
+          + '<span class="player-elo">' + p.points + '</span>'
+          + '<span class="player-record">' + record + '</span>'
+          + '</label>';
+      }
+      if (!players.length) {
+        html = '<p style="color:#555;font-size:0.78rem;padding:0.5rem 0">No players yet. Add one below.</p>';
+      }
+      elRoster.innerHTML = html;
+
+      elRoster.querySelectorAll('.player-row input').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+          var row = cb.closest('.player-row');
+          var id = row.getAttribute('data-id');
+          if (cb.checked) {
+            selected[id] = true;
+            row.classList.add('selected');
+          } else {
+            delete selected[id];
+            row.classList.remove('selected');
+          }
+          updateCreateBtn();
+        });
+      });
+    }
+
+    /* ── match render ── */
+    function renderMatches() {
+      if (!allMatches.length) {
+        elMatches.innerHTML = '<p class="empty-state">No matches yet. Select players and create a custom.</p>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < allMatches.length; i++) {
+        html += buildMatchCard(allMatches[i]);
+      }
+      elMatches.innerHTML = html;
+      bindMatchEvents();
+    }
+
+    function buildMatchCard(m) {
+      var scoreHtml;
+      if (m.result === 'team_a') {
+        scoreHtml = '<span class="win">1</span> — <span class="loss">0</span>';
+      } else if (m.result === 'team_b') {
+        scoreHtml = '<span class="loss">0</span> — <span class="win">1</span>';
+      } else if (m.result === 'draw') {
+        scoreHtml = '<span style="color:#ffc107">Draw</span>';
+      } else if (m.result === 'cancelled') {
+        scoreHtml = '<span style="color:#777">Cancelled</span>';
+      } else {
+        scoreHtml = '<span class="pending">vs</span>';
+      }
+
+      var teamANames = m.team_a_names || m.team_a.map(playerNameById);
+      var teamBNames = m.team_b_names || m.team_b.map(playerNameById);
+
+      var teamAPts = 0, teamBPts = 0;
+      for (var k = 0; k < players.length; k++) {
+        if (m.team_a.indexOf(players[k].id) !== -1) teamAPts += players[k].points;
+        if (m.team_b.indexOf(players[k].id) !== -1) teamBPts += players[k].points;
+      }
+
+      var h = '<div class="match-card" data-match-id="' + m.id + '">';
+      h += '<div class="match-header">';
+      h += '<span class="match-title">' + esc(m.title) + '</span>';
+      h += '<span class="match-date">' + fmtDate(m.created_at) + '</span>';
+      h += '</div>';
+      h += '<div class="match-body">';
+
+      h += '<div class="match-score-row">';
+      h += '<div style="text-align:right;flex:1">';
+      h += '<div class="match-team-label a">Team A</div>';
+      h += '<div class="match-pts">' + teamAPts + ' pts</div>';
+      h += '</div>';
+      h += '<div class="match-score">' + scoreHtml + '</div>';
+      h += '<div style="text-align:left;flex:1">';
+      h += '<div class="match-team-label b">Team B</div>';
+      h += '<div class="match-pts">' + teamBPts + ' pts</div>';
+      h += '</div>';
+      h += '</div>';
+
+      h += '<div class="match-teams">';
+      h += '<div class="team-col a">';
+      for (var a = 0; a < teamANames.length; a++) {
+        h += '<div class="team-player">' + esc(teamANames[a]) + '</div>';
+      }
+      h += '</div>';
+      h += '<div class="team-col b">';
+      for (var b = 0; b < teamBNames.length; b++) {
+        h += '<div class="team-player">' + esc(teamBNames[b]) + '</div>';
+      }
+      h += '</div>';
+      h += '</div>';
+
+      if (m.result === null) {
+        h += '<div class="match-actions">';
+        h += '<button class="btn-win-a" data-action="team_a">Team A Wins</button>';
+        h += '<button data-action="draw">Draw</button>';
+        h += '<button class="btn-win-b" data-action="team_b">Team B Wins</button>';
+        h += '<button class="btn-cancel" data-action="cancelled">Cancel</button>';
+        h += '</div>';
+      }
+
+      h += '</div>';
+
+      h += '<button class="stats-toggle" data-toggle-stats="' + m.id + '">';
+      h += '<span class="arrow">&#9654;</span> Player Stats';
+      h += '</button>';
+      h += '<div class="stats-panel" id="stats-' + m.id + '">';
+      h += buildStatsTable(m, 'a');
+      h += buildStatsTable(m, 'b');
+      h += '</div>';
+
+      h += '</div>';
+      return h;
+    }
+
+    function buildStatsTable(m, team) {
+      var ids = team === 'a' ? m.team_a : m.team_b;
+      var names = team === 'a'
+        ? (m.team_a_names || m.team_a.map(playerNameById))
+        : (m.team_b_names || m.team_b.map(playerNameById));
+      var ps = m.player_stats || {};
+      var lbl = team === 'a' ? 'Team A' : 'Team B';
+      var cls = team === 'a' ? 'a' : 'b';
+
+      var h = '<div class="stats-team-label ' + cls + '">' + lbl + '</div>';
+      h += '<table class="stats-table"><thead><tr>';
+      h += '<th>Player</th><th>K</th><th>D</th><th>A</th><th>DMG</th>';
+      h += '</tr></thead><tbody>';
+      for (var i = 0; i < ids.length; i++) {
+        var s = ps[ids[i]] || {};
+        h += '<tr>';
+        h += '<td>' + esc(names[i]) + '</td>';
+        h += statCell(m.id, ids[i], 'kills', s.kills);
+        h += statCell(m.id, ids[i], 'deaths', s.deaths);
+        h += statCell(m.id, ids[i], 'assists', s.assists);
+        h += statCell(m.id, ids[i], 'damage', s.damage);
+        h += '</tr>';
+      }
+      h += '</tbody></table>';
+      return h;
+    }
+
+    function statCell(matchId, playerId, field, val) {
+      return '<td><input type="number" min="0" placeholder="—" '
+        + 'data-mid="' + matchId + '" data-pid="' + playerId + '" data-field="' + field + '" '
+        + (val != null ? 'value="' + val + '"' : '')
+        + '></td>';
+    }
+
+    function bindMatchEvents() {
+      document.querySelectorAll('.match-actions button[data-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var card = btn.closest('.match-card');
+          var mid = card.getAttribute('data-match-id');
+          var action = btn.getAttribute('data-action');
+          postJSON('/api/boost/match/' + mid + '/result', { result: action })
+            .then(function (res) {
+              if (res.error) return notify(res.error, 'error');
+              notify('Result recorded', 'ok');
+              loadAll();
+            });
+        });
+      });
+
+      document.querySelectorAll('[data-toggle-stats]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var mid = btn.getAttribute('data-toggle-stats');
+          var panel = document.getElementById('stats-' + mid);
+          var open = panel.classList.toggle('open');
+          btn.classList.toggle('open', open);
+        });
+      });
+
+      document.querySelectorAll('.stats-table input').forEach(function (inp) {
+        var timer;
+        inp.addEventListener('input', function () {
+          clearTimeout(timer);
+          timer = setTimeout(function () {
+            var mid = inp.getAttribute('data-mid');
+            var pid = inp.getAttribute('data-pid');
+            var field = inp.getAttribute('data-field');
+            var row = inp.closest('tr');
+            var inputs = row.querySelectorAll('input');
+            var stats = {};
+            inputs.forEach(function (i) {
+              var v = i.value.trim();
+              if (v !== '') stats[i.getAttribute('data-field')] = parseInt(v, 10);
+            });
+            postJSON('/api/boost/match/' + mid + '/stats', {
+              player_id: pid,
+              stats: stats
+            });
+          }, 600);
+        });
+      });
+    }
+
+    function esc(s) {
+      var el = document.createElement('span');
+      el.textContent = s || '';
+      return el.innerHTML;
+    }
+
+    /* ── data loading ── */
+    function loadPlayers() {
+      return fetch('/api/boost/players').then(function (r) { return r.json(); })
+        .then(function (data) {
+          players = data.players || [];
+          renderRoster();
+          updateCreateBtn();
+        });
+    }
+
+    function loadMatches() {
+      return fetch('/api/boost/matches').then(function (r) { return r.json(); })
+        .then(function (data) {
+          allMatches = data.matches || [];
+          renderMatches();
+        });
+    }
+
+    function loadAll() {
+      loadPlayers().then(loadMatches);
+    }
+
+    /* ── actions ── */
+    elCreateBtn.addEventListener('click', function () {
+      var ids = Object.keys(selected);
+      if (ids.length < 2) return notify('Select at least 2 players.', 'warn');
+      if (ids.length % 2 !== 0) return notify('Need an even number of players.', 'warn');
+      postJSON('/api/boost/queue', { players: ids })
+        .then(function (res) {
+          if (res.error) return notify(res.error, 'error');
+          selected = {};
+          notify('Custom created — teams balanced!', 'ok');
+          loadAll();
+        });
+    });
+
+    function addPlayer() {
+      var name = elAddName.value.trim();
+      if (!name) return;
+      postJSON('/api/boost/players', { name: name })
+        .then(function (res) {
+          if (res.error) return notify(res.error, 'error');
+          elAddName.value = '';
+          loadPlayers();
+        });
+    }
+    elAddBtn.addEventListener('click', addPlayer);
+    elAddName.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') addPlayer();
+    });
+
+    /* ── init ── */
+    loadAll();
+  })();
+  </script>
+</body>
+</html>

@@ -26,10 +26,12 @@ def create_app():
     from webapp.dashboard import dashboard_bp
     from webapp.monitor import monitor_bp
     from webapp.telegram import telegram_bp
+    from webapp.boost import boost_bp
 
     app.register_blueprint(dashboard_bp, url_prefix="/")
     app.register_blueprint(monitor_bp, url_prefix="/")
     app.register_blueprint(telegram_bp)
+    app.register_blueprint(boost_bp, url_prefix="/")
 
     return app
 
