@@ -1,3 +1,6 @@
 [submodule "boost_bot"]
 	path = boost_bot
 	url = git@github.com:JARCosta/BoostBot.git
+[submodule "autolab-client"]
+	path = autolab-client
+	url = git@github.com:JARCosta/autolab-client.git
