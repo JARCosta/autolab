@@ -336,6 +336,48 @@
 
   var elStatus = document.getElementById('status');
   var elDevice = document.getElementById('device-select');
+  var elMergeToggle = document.getElementById('device-merge-toggle');
+  var elMergePopover = document.getElementById('device-merge-popover');
+  var elMergeTarget = document.getElementById('device-merge-target');
+  var elMergeBtn = document.getElementById('device-merge-btn');
+  var elMergeCancel = document.getElementById('device-merge-cancel');
+  var elDeviceNameList = document.getElementById('device-name-list');
+
+  function isValidDeviceName(name) {
+    return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(name);
+  }
+
+  function refreshDeviceSuggestions(devices) {
+    if (!elDeviceNameList) return;
+    elDeviceNameList.innerHTML = '';
+    (devices || []).forEach(function (d) {
+      if (!d) return;
+      var opt = document.createElement('option');
+      opt.value = d;
+      elDeviceNameList.appendChild(opt);
+    });
+  }
+
+  function isMergePopoverOpen() {
+    return !!(elMergePopover && !elMergePopover.hidden);
+  }
+
+  function openMergePopover() {
+    if (!elMergePopover) return;
+    elMergePopover.hidden = false;
+    if (elMergeTarget) {
+      if (!elMergeTarget.value || elMergeTarget.value === currentDevice) {
+        elMergeTarget.value = '';
+      }
+      elMergeTarget.focus();
+      elMergeTarget.select();
+    }
+  }
+
+  function closeMergePopover() {
+    if (!elMergePopover) return;
+    elMergePopover.hidden = true;
+  }
 
   function mergeDeviceOptions(devices) {
     if (!devices || !devices.length) return;
@@ -358,6 +400,11 @@
       elDevice.value = devices[0];
       currentDevice = devices[0];
     }
+    if (elMergeTarget && !elMergeTarget.value) {
+      var initialTarget = devices.find(function (d) { return d !== currentDevice; }) || currentDevice;
+      elMergeTarget.value = initialTarget || '';
+    }
+    refreshDeviceSuggestions(devices);
     try { localStorage.setItem('autolab_hw_device', currentDevice); } catch (e) {}
   }
 
@@ -483,8 +530,99 @@
 
   elDevice.addEventListener('change', function () {
     currentDevice = elDevice.value;
+    if (elMergeTarget && elMergeTarget.value === currentDevice) {
+      elMergeTarget.value = '';
+    }
     try { localStorage.setItem('autolab_hw_device', currentDevice); } catch (e) {}
     fetchHistory();
+  });
+
+  if (elMergeBtn) {
+    elMergeBtn.addEventListener('click', function () {
+      var source = (elDevice.value || '').trim();
+      var target = (elMergeTarget && elMergeTarget.value ? elMergeTarget.value : '').trim();
+      if (!source) {
+        alert('Pick a source device first.');
+        return;
+      }
+      if (!target) {
+        alert('Enter a target device name.');
+        return;
+      }
+      if (!isValidDeviceName(target)) {
+        alert('Invalid target name. Use 1-64 chars: letters, numbers, dot, underscore, hyphen.');
+        return;
+      }
+      if (source === target) {
+        alert('Source and target are the same.');
+        return;
+      }
+      var ok = window.confirm(
+        'Move all samples from "' + source + '" into "' + target + '"?\n\nThis cannot be undone.'
+      );
+      if (!ok) return;
+
+      elMergeBtn.disabled = true;
+      elStatus.textContent = 'Moving data...';
+      fetch('/api/monitor/device/reassign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: source, target: target })
+      })
+        .then(function (r) {
+          return r.json().then(function (data) { return { status: r.status, data: data }; });
+        })
+        .then(function (res) {
+          if (res.status >= 400 || !res.data || !res.data.ok) {
+            var msg = (res.data && res.data.error) || 'Reassign failed';
+            throw new Error(msg);
+          }
+          currentDevice = target;
+          elDevice.value = currentDevice;
+          if (elMergeTarget) elMergeTarget.value = '';
+          if (res.data.devices) mergeDeviceOptions(res.data.devices);
+          fetchHistory();
+          elStatus.textContent = 'Moved ' + res.data.moved + ' sample(s) from ' + source + ' to ' + target + '.';
+          closeMergePopover();
+        })
+        .catch(function (err) {
+          elStatus.textContent = 'Move failed: ' + (err && err.message ? err.message : 'unknown error');
+        })
+        .finally(function () {
+          elMergeBtn.disabled = false;
+        });
+    });
+  }
+
+  if (elMergeToggle) {
+    elMergeToggle.addEventListener('click', function (evt) {
+      evt.stopPropagation();
+      if (isMergePopoverOpen()) {
+        closeMergePopover();
+      } else {
+        openMergePopover();
+      }
+    });
+  }
+
+  if (elMergeCancel) {
+    elMergeCancel.addEventListener('click', function () {
+      closeMergePopover();
+    });
+  }
+
+  document.addEventListener('click', function (evt) {
+    if (!isMergePopoverOpen()) return;
+    var root = elMergePopover && elMergePopover.parentElement;
+    if (root && !root.contains(evt.target)) {
+      closeMergePopover();
+    }
+  });
+
+  document.addEventListener('keydown', function (evt) {
+    if (evt.key === 'Escape' && isMergePopoverOpen()) {
+      closeMergePopover();
+    }
   });
 
   var fullRefreshMs = 5 * 60 * 1000;

@@ -10,6 +10,7 @@ from storage.hardware import (
     get_metrics_history,
     list_device_names,
     normalize_device_name,
+    reassign_device_metrics,
     store_metrics,
     store_metrics_batch,
 )
@@ -19,6 +20,7 @@ monitor_bp = Blueprint(
     __name__,
     template_folder="templates",
     static_folder="static",
+    static_url_path="/static/monitor",
 )
 
 
@@ -119,3 +121,30 @@ def monitor_push():
         gpu_vendor=_vendor("gpu_vendor"),
     )
     return jsonify({"ok": True})
+
+
+@monitor_bp.route("/api/monitor/device/reassign", methods=["POST"])
+def monitor_reassign_device():
+    """Move all samples from one device id into another."""
+    data = request.get_json(silent=True) or {}
+    source = normalize_device_name(str(data.get("source", "")))
+    target = normalize_device_name(str(data.get("target", "")))
+
+    if not source or not target:
+        return jsonify({"error": "invalid or missing source/target"}), 400
+    if source == target:
+        return jsonify({"error": "source and target must be different"}), 400
+
+    moved = reassign_device_metrics(source, target)
+    latest = get_latest_metric(device=target)
+    devices = list_device_names()
+    return jsonify(
+        {
+            "ok": True,
+            "moved": moved,
+            "source": source,
+            "target": target,
+            "latest": latest,
+            "devices": devices,
+        }
+    )

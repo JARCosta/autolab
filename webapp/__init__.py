@@ -88,9 +88,24 @@ def launch():
 
     from webapp.telegram.commands import commands
 
-    port = 5000
+    port = int(os.getenv("WEBAPP_PORT", "5000"))
+    host = os.getenv("WEBAPP_HOST", "0.0.0.0").strip() or "0.0.0.0"
+    ngrok_enabled = os.getenv("WEBAPP_ENABLE_NGROK", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
     app = create_app()
-    tunnel = start_ngrok(port)
+    tunnel = None
+    if ngrok_enabled:
+        try:
+            tunnel = start_ngrok(port)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # Keep LAN API reachable even if ngrok fails.
+            log.warning("ngrok unavailable; continuing without webhook tunnel: %s", e)
+    else:
+        log.info("WEBAPP_ENABLE_NGROK disabled; running without webhook tunnel.")
 
     notification_token = os.getenv("TELEGRAM_NOTIFICATION_TOKEN")
     logs_token = os.getenv("TELEGRAM_LOGS_TOKEN")
@@ -100,16 +115,20 @@ def launch():
     requests.post(command_helper_url, data=command_helper, timeout=10)
 
     command_helper_url = f"https://api.telegram.org/bot{logs_token}/setMyCommands"
-    requests.post(command_helper_url, data={"commands": json.dumps([])})
+    requests.post(command_helper_url, data={"commands": json.dumps([])}, timeout=10)
 
-    webhook_url = f"{ngrok_webhook_base(tunnel)}/webhook"
-    log.info("Telegram webhook URL: %s", webhook_url)
-    requests.post(
-        f"https://api.telegram.org/bot{notification_token}/setWebhook",
-        data={"url": webhook_url},
-    )
+    if tunnel is not None:
+        webhook_url = f"{ngrok_webhook_base(tunnel)}/webhook"
+        log.info("Telegram webhook URL: %s", webhook_url)
+        requests.post(
+            f"https://api.telegram.org/bot{notification_token}/setWebhook",
+            data={"url": webhook_url},
+            timeout=10,
+        )
+    else:
+        log.info("Skipping Telegram webhook registration (no ngrok tunnel).")
 
     # Hide per-request access lines (GET/POST … 200) from Werkzeug; keep WARNING+.
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-    app.run(port=port, debug=False, use_reloader=False)
+    app.run(host=host, port=port, debug=False, use_reloader=False)

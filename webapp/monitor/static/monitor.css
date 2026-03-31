@@ -82,6 +82,82 @@ h1 {
   min-width: 14rem;
   cursor: pointer;
 }
+.device-row input {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #e0e0e0;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.35rem;
+  font-size: 0.85rem;
+  min-width: 14rem;
+}
+.device-row input::placeholder { color: #666; }
+.merge-action { position: relative; }
+.merge-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #9eb6ff;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.merge-toggle-btn:hover { background: #222; border-color: #4a5f93; color: #c1d2ff; }
+.merge-popover {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: 20rem;
+  background: #131313;
+  border: 1px solid #2f2f2f;
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+}
+.merge-popover-title {
+  font-size: 0.72rem;
+  color: #9aa0ab;
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.merge-popover .device-row input,
+.merge-popover input {
+  width: 100%;
+  min-width: 0;
+}
+.merge-popover-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+.merge-btn {
+  background: #1e2a1f;
+  border: 1px solid #2f4b33;
+  color: #b8e3bf;
+  padding: 0.42rem 0.75rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+.merge-btn:hover { background: #233326; border-color: #3b6b43; }
+.merge-cancel-btn {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #aaa;
+  padding: 0.42rem 0.75rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.merge-cancel-btn:hover { background: #222; border-color: #555; color: #ddd; }
 
 .readings {
   display: grid;

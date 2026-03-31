@@ -473,21 +473,25 @@ def run_push_loop(
         iv = ngrok_min_iv
     ok, gpu_msg = verify_nvidia_gpu()
     log.info(
-        "Hardware push client started (interval=%ss → ~%d samples/cycle, device=%s, url=%s, gpu=%s)",
+        "Hardware push client started (interval=%ss → first push in ~1s with 1 sample, then ~%d samples/cycle, device=%s, url=%s, gpu=%s)",
         iv,
         max(1, int(round(iv))),
         device,
         url,
         gpu_msg if ok else f"off ({gpu_msg})",
     )
+    first_cycle = True
     while kill_event is None or not kill_event.is_set():
-        samples = collect_samples_over_interval(iv, kill_event=kill_event)
+        cycle_interval = 1.0 if first_cycle else iv
+        samples = collect_samples_over_interval(cycle_interval, kill_event=kill_event)
+        first_cycle = False
         if not samples:
+            wait_seconds = max(1.0, cycle_interval)
             if kill_event is not None:
-                if kill_event.wait(timeout=max(1.0, iv)):
+                if kill_event.wait(timeout=wait_seconds):
                     break
             else:
-                time.sleep(max(1.0, iv))
+                time.sleep(wait_seconds)
             continue
 
         payload = {"token": token, "device": device, "samples": samples}

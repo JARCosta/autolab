@@ -52,9 +52,7 @@ if __name__ == "__main__":
         token = os.getenv("HARDWARE_PUSH_TOKEN", "").strip()
         if not token:
             return
-        url = os.getenv("HARDWARE_PUSH_URL", "").strip() or (
-            "http://127.0.0.1:5000/api/monitor/push"
-        )
+        url = "http://127.0.0.1:5000/api/monitor/push"
         from hardware_client import get_local_device_name, run_push_loop
 
         interval = float(os.getenv("HARDWARE_PUSH_INTERVAL", "60"))

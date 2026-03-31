@@ -281,6 +281,28 @@ def list_device_names() -> list[str]:
     return out
 
 
+def reassign_device_metrics(source_device: str, target_device: str) -> int:
+    """Move all rows from ``source_device`` to ``target_device``.
+
+    Returns number of moved rows.
+    """
+    src = normalize_device_name(source_device)
+    dst = normalize_device_name(target_device)
+    if not src or not dst:
+        raise ValueError("invalid device name")
+    if src == dst:
+        return 0
+
+    _init_db()
+    with sqlite3.connect(paths.HARDWARE_DB) as conn:
+        cur = conn.execute(
+            "UPDATE hardware_metrics SET device = ? WHERE device = ?",
+            (dst, src),
+        )
+        moved = cur.rowcount if cur.rowcount is not None and cur.rowcount >= 0 else 0
+    return int(moved)
+
+
 def get_metrics_history(
     minutes: int = 60,
     max_points: int = 4000,
