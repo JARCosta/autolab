@@ -1,4 +1,4 @@
-"""Dashboard Blueprint: home page and balance table UI."""
+"""StreamElements Blueprint: balance table UI and APIs."""
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, render_template, request
@@ -10,30 +10,26 @@ from storage.balances import (
     get_balance_rows_from_cache,
 )
 
-dashboard_bp = Blueprint("dashboard", __name__, template_folder="templates")
+streamelements_bp = Blueprint(
+    "streamelements",
+    __name__,
+    template_folder="templates",
+    static_folder="static",
+)
 
 
-@dashboard_bp.route("/")
-def home():
-    return render_template("home.html")
-
-
-@dashboard_bp.route("/balances")
+@streamelements_bp.route("/balances")
 def balances():
     rows = get_balance_rows_from_cache()
-    bettors = (
-        [b for b, _ in rows[0][1]]
-        if rows
-        else list(config.BETTORS.keys())
-    )
+    bettors = [b for b, _ in rows[0][1]] if rows else list(config.BETTORS.keys())
     return render_template("index.html", rows=rows, bettors=bettors)
 
 
-@dashboard_bp.route("/api/balances")
+@streamelements_bp.route("/api/balances")
 def api_balances():
     """Fetch live balances, update cache, return JSON for in-page update."""
-    # The dashboard doesn't need to poll StreamElements if we already have
-    # very fresh values.
+    # The StreamElements page doesn't need to poll StreamElements if we already
+    # have very fresh values.
     rows = fetch_and_cache_balances(min_age_seconds=5 * 60)
     payload = [
         {"channel": channel, "cells": [{"bettor": b, "balance": bal} for b, bal in cells]}
@@ -42,7 +38,7 @@ def api_balances():
     return jsonify({"rows": payload})
 
 
-@dashboard_bp.route("/api/balance_history")
+@streamelements_bp.route("/api/balance_history")
 def api_balance_history():
     """Return time series for a single (channel, bettor).
 

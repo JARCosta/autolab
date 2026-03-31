@@ -4,6 +4,7 @@ Launches all services: StreamElements bettors, Telegram webapp, and Discord bot.
 Uses threading (I/O-bound workload); one process keeps memory low and logs consistent.
 """
 import threading
+
 from dotenv import load_dotenv
 
 from config import STREAMELEMENTS_BETTORS, WALLAPOP_POLL_ENABLED
@@ -11,9 +12,9 @@ from config import STREAMELEMENTS_BETTORS, WALLAPOP_POLL_ENABLED
 load_dotenv()
 
 if __name__ == "__main__":
+    import notifications
     from logging_config import setup_logging
     from notifications.telegram import TelegramChannel
-    import notifications
 
     log = setup_logging("autolab")
     notifications.set_channel(TelegramChannel())
@@ -56,7 +57,7 @@ if __name__ == "__main__":
         )
         from hardware_client import get_local_device_name, run_push_loop
 
-        interval = float(os.getenv("HARDWARE_PUSH_INTERVAL", "10"))
+        interval = float(os.getenv("HARDWARE_PUSH_INTERVAL", "60"))
         run_push_loop(
             url,
             token,
@@ -65,8 +66,8 @@ if __name__ == "__main__":
             kill_event=kill_event,
         )
 
-    t_hw = threading.Thread(target=run_server_hardware_client, daemon=True)
-    threads.append(t_hw)
+    # t_hw = threading.Thread(target=run_server_hardware_client, daemon=True)
+    # threads.append(t_hw)
 
     if WALLAPOP_POLL_ENABLED:
         from wallapop_tracker.tracker import SearchRunner

@@ -14,7 +14,12 @@ from storage.hardware import (
     store_metrics_batch,
 )
 
-monitor_bp = Blueprint("monitor", __name__, template_folder="templates")
+monitor_bp = Blueprint(
+    "monitor",
+    __name__,
+    template_folder="templates",
+    static_folder="static",
+)
 
 
 @monitor_bp.route("/monitor")

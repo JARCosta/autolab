@@ -7,7 +7,7 @@ Environment:
   HARDWARE_PUSH_URL   Full URL to POST, e.g. https://xxx.ngrok.io/api/monitor/push
   HARDWARE_PUSH_TOKEN Same value as server HARDWARE_PUSH_TOKEN
   HARDWARE_DEVICE_NAME  Optional; if unset, uses Windows COMPUTERNAME (e.g. DESKTOP-…) or hostname
-  HARDWARE_PUSH_INTERVAL  Wall-clock seconds between uploads; one sample per second is taken over that window (default: 10 → 10 points per POST).
+  HARDWARE_PUSH_INTERVAL  Wall-clock seconds between uploads; one sample per second is taken over that window (default: 60 → 60 points per POST).
 
 This script uses the same sampling and push loop as the AutoLab server process
 (``hardware_client.run_push_loop``) so every machine shares one code path.
@@ -37,7 +37,7 @@ def main() -> None:
         device = normalize_device_name(raw) or get_local_device_name()
     else:
         device = get_local_device_name()
-    interval = float(os.getenv("HARDWARE_PUSH_INTERVAL", "10"))
+    interval = float(os.getenv("HARDWARE_PUSH_INTERVAL", "60"))
 
     if not url or not token or not device:
         print(

@@ -3,7 +3,8 @@ Flask application factory with ngrok tunnel management.
 
 The webapp is designed to be extensible -- each feature is a Flask Blueprint.
 Currently registered blueprints:
-  - dashboard: Web UI at / (e.g. balance table)
+  - home: Web UI landing page at /
+  - streamelements: balances UI + API routes
   - telegram: Telegram bot webhook and messaging helpers
 
 To add a new module:
@@ -22,13 +23,20 @@ log = setup_logging("webapp")
 
 def create_app():
     app = Flask(__name__)
+    asset_version = os.getenv("WEBAPP_ASSET_VERSION", "1")
 
-    from webapp.dashboard import dashboard_bp
+    @app.context_processor
+    def inject_asset_version():
+        return {"asset_version": asset_version}
+
+    from webapp.home import home_bp
     from webapp.monitor import monitor_bp
+    from webapp.streamelements import streamelements_bp
     from webapp.telegram import telegram_bp
     from webapp.boost import boost_bp
 
-    app.register_blueprint(dashboard_bp, url_prefix="/")
+    app.register_blueprint(home_bp, url_prefix="/")
+    app.register_blueprint(streamelements_bp, url_prefix="/")
     app.register_blueprint(monitor_bp, url_prefix="/")
     app.register_blueprint(telegram_bp)
     app.register_blueprint(boost_bp, url_prefix="/")

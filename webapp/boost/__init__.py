@@ -13,7 +13,12 @@ from webapp.boost.store import (
     update_match_stats,
 )
 
-boost_bp = Blueprint("boost", __name__, template_folder="templates")
+boost_bp = Blueprint(
+    "boost",
+    __name__,
+    template_folder="templates",
+    static_folder="static",
+)
 
 
 @boost_bp.route("/boost")

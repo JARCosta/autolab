@@ -1,0 +1,118 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f0f0f;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+nav a {
+  color: #888;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+nav a:hover { color: #bbb; }
+h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.table-box {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+th, td {
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid #222;
+}
+th {
+  background: #161616;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+tbody tr { transition: background 0.1s; }
+tbody tr:hover { background: #222; }
+tbody tr:last-child td { border-bottom: none; }
+.channel-name { font-weight: 500; font-size: 0.9rem; }
+.balance {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+td.balance:hover { color: #fff; }
+td.balance.selected { color: #4caf50; }
+.delta-positive { color: #4caf50 !important; }
+.delta-negative { color: #f44336 !important; }
+
+.chart-box {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-top: 0.75rem;
+}
+.chart-box h2 {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #999;
+  margin-bottom: 0.5rem;
+}
+.chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+.range-btn {
+  background: #161616;
+  border: 1px solid #333;
+  color: #aaa;
+  padding: 0.25rem 0.65rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+.range-btn:hover { background: #222; border-color: #555; }
+.range-btn.active {
+  background: #2a2a2a;
+  border-color: #4caf50;
+  color: #e0e0e0;
+}
+.chart-wrap {
+  position: relative;
+  height: 180px;
+}
+.chart-empty {
+  font-size: 0.8rem;
+  color: #555;
+  padding: 1rem 0;
+}
+.is-hidden { display: none; }
+.status {
+  font-size: 0.75rem;
+  color: #555;
+  margin-top: 0.75rem;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .chart-wrap { height: 140px; }
+  th, td { padding: 0.45rem 0.55rem; font-size: 0.82rem; }
+}

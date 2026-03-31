@@ -1,0 +1,194 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f0f0f;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+.app-shell {
+  display: flex;
+  max-width: 1100px;
+  margin: 0 auto;
+  min-height: 100vh;
+  align-items: flex-start;
+}
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 1rem 0.75rem 1rem 1rem;
+  border-right: 1px solid #2a2a2a;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+.sidebar h2 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666;
+  margin-bottom: 0.65rem;
+}
+.sidebar label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #bbb;
+  margin-bottom: 0.45rem;
+  cursor: pointer;
+}
+.sidebar label:hover { color: #e0e0e0; }
+.sidebar input { accent-color: #4caf50; cursor: pointer; }
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 1.5rem 1rem 1.5rem 0.5rem;
+}
+nav a {
+  color: #888;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+nav a:hover { color: #bbb; }
+h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0.75rem 0 1rem;
+}
+
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.device-row label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+.device-row select {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #e0e0e0;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.35rem;
+  font-size: 0.85rem;
+  min-width: 14rem;
+  cursor: pointer;
+}
+
+.readings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.reading {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
+}
+.reading-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #888;
+  margin-bottom: 0.2rem;
+}
+.reading-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #e0e0e0;
+}
+.reading-sep { color: #555; font-weight: 400; }
+.gpu-banner {
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  background: #141414;
+  border-radius: 0.35rem;
+  border: 1px solid #252525;
+}
+.gpu-banner.ok { color: #81c784; border-color: #2e4a32; }
+.gpu-banner.warn { color: #888; }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+.range-btn {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #aaa;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+.range-btn:hover { background: #222; border-color: #555; }
+.range-btn.active {
+  background: #2a2a2a;
+  border-color: #4caf50;
+  color: #e0e0e0;
+}
+
+.chart-box {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.chart-box h2 {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #999;
+  margin-bottom: 0.5rem;
+}
+.pcie-note {
+  font-size: 0.7rem;
+  color: #666;
+  margin-bottom: 0.35rem;
+}
+.chart-wrap {
+  position: relative;
+  height: 150px;
+}
+.status {
+  font-size: 0.75rem;
+  color: #555;
+  margin-top: 0.75rem;
+  text-align: right;
+}
+.note {
+  font-size: 0.7rem;
+  color: #555;
+  line-height: 1.4;
+  margin-top: 0.75rem;
+  max-width: 42rem;
+}
+
+@media (max-width: 720px) {
+  .app-shell { flex-direction: column; }
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #2a2a2a;
+    position: relative;
+    max-height: none;
+  }
+  .main { padding: 1rem; }
+}
