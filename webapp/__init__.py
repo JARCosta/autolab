@@ -1,5 +1,5 @@
 """
-Flask application factory with ngrok tunnel management.
+Flask application factory with optional ngrok tunnel management.
 
 The webapp is designed to be extensible -- each feature is a Flask Blueprint.
 Currently registered blueprints:
@@ -13,9 +13,10 @@ To add a new module:
 """
 import logging
 import os
+import shutil
 
 from flask import Flask
-from pyngrok import ngrok
+from pyngrok import conf, ngrok
 
 from logging_config import setup_logging
 
@@ -45,6 +46,11 @@ def create_app():
 
 
 def start_ngrok(port: int):
+    system_bin = shutil.which("ngrok")
+    if system_bin:
+        conf.get_default().ngrok_path = system_bin
+        log.info("Using system ngrok binary at %s (no runtime download)", system_bin)
+
     auth_token = os.getenv("NGROK_AUTH_TOKEN")
     if auth_token:
         ngrok.set_auth_token(auth_token)
@@ -90,6 +96,7 @@ def launch():
 
     port = int(os.getenv("WEBAPP_PORT", "5000"))
     host = os.getenv("WEBAPP_HOST", "0.0.0.0").strip() or "0.0.0.0"
+    explicit_webhook = os.getenv("TELEGRAM_WEBHOOK_PUBLIC_URL", "").strip()
     ngrok_enabled = os.getenv("WEBAPP_ENABLE_NGROK", "1").strip().lower() not in (
         "0",
         "false",
@@ -98,7 +105,11 @@ def launch():
     )
     app = create_app()
     tunnel = None
-    if ngrok_enabled:
+    if explicit_webhook:
+        log.info(
+            "TELEGRAM_WEBHOOK_PUBLIC_URL is set; skipping ngrok (use your own HTTPS ingress)."
+        )
+    elif ngrok_enabled:
         try:
             tunnel = start_ngrok(port)
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -117,8 +128,14 @@ def launch():
     command_helper_url = f"https://api.telegram.org/bot{logs_token}/setMyCommands"
     requests.post(command_helper_url, data={"commands": json.dumps([])}, timeout=10)
 
-    if tunnel is not None:
+    if explicit_webhook:
+        webhook_url = explicit_webhook.rstrip("/")
+    elif tunnel is not None:
         webhook_url = f"{ngrok_webhook_base(tunnel)}/webhook"
+    else:
+        webhook_url = None
+
+    if webhook_url:
         log.info("Telegram webhook URL: %s", webhook_url)
         requests.post(
             f"https://api.telegram.org/bot{notification_token}/setWebhook",
@@ -126,9 +143,21 @@ def launch():
             timeout=10,
         )
     else:
-        log.info("Skipping Telegram webhook registration (no ngrok tunnel).")
+        log.info(
+            "Skipping Telegram webhook registration "
+            "(set TELEGRAM_WEBHOOK_PUBLIC_URL or fix ngrok / WEBAPP_ENABLE_NGROK)."
+        )
 
-    # Hide per-request access lines (GET/POST … 200) from Werkzeug; keep WARNING+.
-    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    # Show per-request access lines by default so monitor traffic is visible.
+    # Set WEBAPP_SHOW_ACCESS_LOGS=0/false/no/off to mute them.
+    show_access_logs = os.getenv("WEBAPP_SHOW_ACCESS_LOGS", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    logging.getLogger("werkzeug").setLevel(
+        logging.INFO if show_access_logs else logging.WARNING
+    )
 
     app.run(host=host, port=port, debug=False, use_reloader=False)

@@ -23,7 +23,7 @@ streamelements_bp = Blueprint(
 def balances():
     rows = get_balance_rows_from_cache()
     bettors = [b for b, _ in rows[0][1]] if rows else list(config.BETTORS.keys())
-    return render_template("index.html", rows=rows, bettors=bettors)
+    return render_template("streamelements.html", rows=rows, bettors=bettors)
 
 
 @streamelements_bp.route("/api/balances")

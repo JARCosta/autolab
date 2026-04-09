@@ -204,6 +204,21 @@ h1 {
   gap: 0.35rem;
   margin-bottom: 1rem;
 }
+.fetch-btn {
+  background: #1f2a1f;
+  border: 1px solid #335c3a;
+  color: #b8e3bf;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+.fetch-btn:hover { background: #243526; border-color: #4b8a56; }
+.fetch-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
 .range-btn {
   background: #1a1a1a;
   border: 1px solid #333;
@@ -242,6 +257,29 @@ h1 {
 .chart-wrap {
   position: relative;
   height: 150px;
+}
+.chart-wrap.chart-loading::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 0.25rem;
+  background: linear-gradient(
+    100deg,
+    #1a1a1a 0%,
+    #242424 40%,
+    #1a1a1a 80%
+  );
+  background-size: 200% 100%;
+  animation: chart-load-shimmer 1.1s ease-in-out infinite;
+  pointer-events: none;
+}
+.chart-wrap.chart-loading canvas {
+  opacity: 0.2;
+}
+@keyframes chart-load-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 .status {
   font-size: 0.75rem;

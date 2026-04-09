@@ -46,27 +46,6 @@ if __name__ == "__main__":
     t_discord = threading.Thread(target=run_discord_bot, args=(), daemon=True)
     threads.append(t_discord)
 
-    import os
-
-    def run_server_hardware_client():
-        token = os.getenv("HARDWARE_PUSH_TOKEN", "").strip()
-        if not token:
-            return
-        url = "http://127.0.0.1:5000/api/monitor/push"
-        from hardware_client import get_local_device_name, run_push_loop
-
-        interval = float(os.getenv("HARDWARE_PUSH_INTERVAL", "60"))
-        run_push_loop(
-            url,
-            token,
-            get_local_device_name(),
-            interval,
-            kill_event=kill_event,
-        )
-
-    # t_hw = threading.Thread(target=run_server_hardware_client, daemon=True)
-    # threads.append(t_hw)
-
     if WALLAPOP_POLL_ENABLED:
         from wallapop_tracker.tracker import SearchRunner
 

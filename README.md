@@ -40,6 +40,7 @@ All secrets live in a single `.env` file (never committed). See `.env.example` f
 | `TELEGRAM_NOTIFICATION_TOKEN` | Telegram bot (user-facing messages) |
 | `TELEGRAM_LOGS_TOKEN` | Telegram bot (log channel) |
 | `TELEGRAM_USER_ID` | Telegram bot (recipient chat ID) |
+| `TELEGRAM_WEBHOOK_PUBLIC_URL` | Optional full HTTPS webhook URL (skips ngrok; use with reverse proxy / tunnel) |
 | `DISCORD_TOKEN` | BoostBot (Discord bot) |
 | `NGROK_AUTH_TOKEN` | Webapp (ngrok tunnel for webhook) |
 | `FACEIT_API_KEY` | StreamElements (win probability from Faceit) |

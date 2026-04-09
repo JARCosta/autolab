@@ -1,10 +1,26 @@
 (function () {
-  var currentMinutes = 60;
+  var currentMinutes = 10080;
   var currentDevice = '';
   try { currentDevice = localStorage.getItem('autolab_hw_device') || ''; } catch (e) {}
 
+  /** Largest range in the UI; history is always fetched for this span and sliced in JS for range buttons (no extra request per click). */
+  var HISTORY_FETCH_MINUTES = (function () {
+    var max = 0;
+    document.querySelectorAll('.range-btn[data-minutes]').forEach(function (b) {
+      var n = parseInt(b.getAttribute('data-minutes'), 10);
+      if (!isNaN(n) && n > max) max = n;
+    });
+    return max || 10080;
+  })();
+  /** Server allows up to 20k; larger cap keeps short windows usable when the cache is a long range (downsampled). */
+  var HISTORY_MAX_POINTS = 20000;
+
+  var cachedMetrics = null;
+  var cachedLatest = null;
+
   var gridColor = 'rgba(255,255,255,0.06)';
   var tickColor = '#888';
+  var lineGapBreakMs = 5 * 60 * 1000;
 
   function mhzToGhz(m) {
     return m != null ? m / 1000 : null;
@@ -270,32 +286,39 @@
   var chartGmem = makeChart('chart-gpu-mem', '#43a047', '%');
   var chartPcie = makePcieChart('chart-pcie');
 
+  function buildSeriesWithGaps(metrics, key, mapY) {
+    mapY = mapY || function (y) { return y; };
+    var out = [];
+    var prevTs = null;
+    metrics.forEach(function (m) {
+      if (!m || m[key] == null || !m.timestamp) return;
+      var ts = new Date(m.timestamp);
+      if (isNaN(ts.getTime())) return;
+      if (prevTs != null && (ts.getTime() - prevTs) > lineGapBreakMs) {
+        out.push({ x: ts, y: null });
+      }
+      out.push({ x: ts, y: mapY(m[key]) });
+      prevTs = ts.getTime();
+    });
+    return out;
+  }
+
   function setData(chart, metrics, key) {
-    chart.data.datasets[0].data = metrics
-      .filter(function (m) { return m[key] != null; })
-      .map(function (m) { return { x: new Date(m.timestamp), y: m[key] }; });
+    chart.data.datasets[0].data = buildSeriesWithGaps(metrics, key);
     chart.update();
   }
 
   function setDualData(chart, metrics, key1, key2, mapY1, mapY2) {
     mapY1 = mapY1 || function (y) { return y; };
     mapY2 = mapY2 || function (y) { return y; };
-    chart.data.datasets[0].data = metrics
-      .filter(function (m) { return m[key1] != null; })
-      .map(function (m) { return { x: new Date(m.timestamp), y: mapY1(m[key1]) }; });
-    chart.data.datasets[1].data = metrics
-      .filter(function (m) { return m[key2] != null; })
-      .map(function (m) { return { x: new Date(m.timestamp), y: mapY2(m[key2]) }; });
+    chart.data.datasets[0].data = buildSeriesWithGaps(metrics, key1, mapY1);
+    chart.data.datasets[1].data = buildSeriesWithGaps(metrics, key2, mapY2);
     chart.update();
   }
 
   function setPcieData(metrics) {
-    chartPcie.data.datasets[0].data = metrics
-      .filter(function (m) { return m.pcie_tx_mbps != null; })
-      .map(function (m) { return { x: new Date(m.timestamp), y: m.pcie_tx_mbps }; });
-    chartPcie.data.datasets[1].data = metrics
-      .filter(function (m) { return m.pcie_rx_mbps != null; })
-      .map(function (m) { return { x: new Date(m.timestamp), y: m.pcie_rx_mbps }; });
+    chartPcie.data.datasets[0].data = buildSeriesWithGaps(metrics, 'pcie_tx_mbps');
+    chartPcie.data.datasets[1].data = buildSeriesWithGaps(metrics, 'pcie_rx_mbps');
     chartPcie.update();
   }
 
@@ -342,6 +365,7 @@
   var elMergeBtn = document.getElementById('device-merge-btn');
   var elMergeCancel = document.getElementById('device-merge-cancel');
   var elDeviceNameList = document.getElementById('device-name-list');
+  var elFetchNowBtn = document.getElementById('fetch-now-btn');
 
   function isValidDeviceName(name) {
     return /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(name);
@@ -473,8 +497,18 @@
 
     function push(chart, idx, v, mapY) {
       if (v == null) return;
-      chart.data.datasets[idx].data.push({ x: ts, y: mapY ? mapY(v) : v });
-      trimDatasetToWindow(chart.data.datasets[idx], minTs);
+      var dataset = chart.data.datasets[idx];
+      var points = dataset.data || [];
+      if (points.length) {
+        var last = points[points.length - 1];
+        var lastTs = (last && last.x instanceof Date) ? last.x.getTime() : new Date(last && last.x).getTime();
+        if (!isNaN(lastTs) && (ts.getTime() - lastTs) > lineGapBreakMs) {
+          points.push({ x: ts, y: null });
+        }
+      }
+      points.push({ x: ts, y: mapY ? mapY(v) : v });
+      dataset.data = points;
+      trimDatasetToWindow(dataset, minTs);
       chart.update('none');
     }
 
@@ -491,41 +525,131 @@
     push(chartPcie, 1, latest.pcie_rx_mbps);
   }
 
-  function fetchHistory() {
-    var dev = elDevice.value || currentDevice || '';
-    var q = '/api/monitor/history?minutes=' + currentMinutes + '&max_points=4000';
-    if (dev) q += '&device=' + encodeURIComponent(dev);
-    fetch(q)
+  var historyFetchGen = 0;
+
+  function setChartsLoading(loading) {
+    document.querySelectorAll('.chart-wrap').forEach(function (w) {
+      w.classList.toggle('chart-loading', !!loading);
+    });
+  }
+
+  function fetchDevicesOnly() {
+    return fetch('/api/monitor/devices')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.devices) mergeDeviceOptions(data.devices);
-        var m = data.metrics || [];
-        var latest = data.latest;
-        setDualData(chartLoad, m, 'cpu_load', 'gpu_util');
-        setDualData(chartClock, m, 'cpu_clock', 'gpu_clock', mhzToGhz, mhzToGhz);
-        setDualData(chartTemp, m, 'cpu_temp', 'gpu_temp');
-        setDualData(chartRamSwap, m, 'ram_percent', 'swap_percent');
-        setData(chartGmem, m, 'gpu_mem_percent');
-        setPcieData(m);
-        renderLatest(latest);
-        elStatus.textContent = 'Updated ' + new Date().toLocaleTimeString();
       })
-      .catch(function () { elStatus.textContent = 'Update failed'; });
+      .catch(function () {});
   }
 
-  function fetchLatest() {
+  function filterMetricsForWindow(metrics, minutes) {
+    if (!metrics || !metrics.length) return [];
+    var minTs = Date.now() - minutes * 60 * 1000;
+    return metrics.filter(function (m) {
+      if (!m || !m.timestamp) return false;
+      var t = new Date(m.timestamp).getTime();
+      return !isNaN(t) && t >= minTs;
+    });
+  }
+
+  function applyCachedHistoryToCharts() {
+    if (!cachedMetrics) return;
+    var m = filterMetricsForWindow(cachedMetrics, currentMinutes);
+    setDualData(chartLoad, m, 'cpu_load', 'gpu_util');
+    setDualData(chartClock, m, 'cpu_clock', 'gpu_clock', mhzToGhz, mhzToGhz);
+    setDualData(chartTemp, m, 'cpu_temp', 'gpu_temp');
+    setDualData(chartRamSwap, m, 'ram_percent', 'swap_percent');
+    setData(chartGmem, m, 'gpu_mem_percent');
+    setPcieData(m);
+    renderLatest(cachedLatest);
+  }
+
+  function fetchHistoryOnly() {
+    var gen = ++historyFetchGen;
     var dev = elDevice.value || currentDevice || '';
-    var q = '/api/monitor/latest';
-    if (dev) q += '?device=' + encodeURIComponent(dev);
-    fetch(q)
+    var q = '/api/monitor/history?minutes=' + HISTORY_FETCH_MINUTES + '&max_points=' + HISTORY_MAX_POINTS;
+    if (dev) q += '&device=' + encodeURIComponent(dev);
+    return fetch(q)
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        var latest = data.metric || null;
-        appendLatestPoint(latest);
-        renderLatest(latest);
+        if (gen !== historyFetchGen) return;
+        if (data.devices) mergeDeviceOptions(data.devices);
+        cachedMetrics = data.metrics || [];
+        cachedLatest = data.latest;
+        applyCachedHistoryToCharts();
         elStatus.textContent = 'Updated ' + new Date().toLocaleTimeString();
       })
-      .catch(function () { elStatus.textContent = 'Update failed'; });
+      .catch(function () {
+        if (gen !== historyFetchGen) return;
+        elStatus.textContent = 'Update failed';
+      });
+  }
+
+  /** Load chart from DB immediately, then pull node backlog (slow), then refresh again.
+   *  Node pull is deferred one tick so the browser can paint the first history response first. */
+  function refreshHistoryWithPull(options) {
+    options = options || {};
+    var quietPull = options.quietPull !== false;
+    fetchHistoryOnly();
+    setTimeout(function () {
+      requestSampleNow(false, { quiet: quietPull }).finally(function () {
+        fetchHistoryOnly();
+      });
+    }, 0);
+  }
+
+  /** First paint: tiny device list + DB history in parallel; shimmer until history returns; node pull after. */
+  function bootstrapMonitor() {
+    setChartsLoading(true);
+    elStatus.textContent = 'Loading…';
+    fetchDevicesOnly();
+    fetchHistoryOnly()
+      .finally(function () {
+        setChartsLoading(false);
+      });
+    setTimeout(function () {
+      requestSampleNow(false, { quiet: true }).finally(function () {
+        fetchHistoryOnly();
+      });
+    }, 0);
+  }
+
+  function requestSampleNow(refreshAfter, opts) {
+    opts = opts || {};
+    var quiet = opts.quiet === true;
+    var dev = elDevice.value || currentDevice || '';
+    if (!dev) {
+      elStatus.textContent = 'Pick a device first.';
+      return Promise.resolve(false);
+    }
+    if (!quiet && elFetchNowBtn) elFetchNowBtn.disabled = true;
+    if (!quiet) elStatus.textContent = 'Requesting sample from node...';
+    return fetch('/api/monitor/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device: dev })
+    })
+      .then(function (r) {
+        return r.json().then(function (data) { return { status: r.status, data: data }; });
+      })
+      .then(function (res) {
+        if (res.status >= 400 || !res.data || !res.data.ok) {
+          var msg = (res.data && res.data.error) || 'request failed';
+          throw new Error(msg);
+        }
+        if (!quiet) {
+          elStatus.textContent = 'Sample received at ' + new Date().toLocaleTimeString();
+        }
+        if (refreshAfter) fetchHistoryOnly();
+        return true;
+      })
+      .catch(function (err) {
+        elStatus.textContent = 'Sample request failed: ' + (err && err.message ? err.message : 'unknown error');
+        return false;
+      })
+      .finally(function () {
+        if (!quiet && elFetchNowBtn) elFetchNowBtn.disabled = false;
+      });
   }
 
   elDevice.addEventListener('change', function () {
@@ -534,8 +658,14 @@
       elMergeTarget.value = '';
     }
     try { localStorage.setItem('autolab_hw_device', currentDevice); } catch (e) {}
-    fetchHistory();
+    refreshHistoryWithPull();
   });
+
+  if (elFetchNowBtn) {
+    elFetchNowBtn.addEventListener('click', function () {
+      refreshHistoryWithPull({ quietPull: false });
+    });
+  }
 
   if (elMergeBtn) {
     elMergeBtn.addEventListener('click', function () {
@@ -581,7 +711,7 @@
           elDevice.value = currentDevice;
           if (elMergeTarget) elMergeTarget.value = '';
           if (res.data.devices) mergeDeviceOptions(res.data.devices);
-          fetchHistory();
+          fetchHistoryOnly();
           elStatus.textContent = 'Moved ' + res.data.moved + ' sample(s) from ' + source + ' to ' + target + '.';
           closeMergePopover();
         })
@@ -625,21 +755,13 @@
     }
   });
 
-  var fullRefreshMs = 5 * 60 * 1000;
   var pollMs = 30 * 1000;
-  var lastFullRefreshAt = 0;
 
   function refreshTick() {
-    if ((Date.now() - lastFullRefreshAt) >= fullRefreshMs) {
-      fetchHistory();
-      lastFullRefreshAt = Date.now();
-      return;
-    }
-    fetchLatest();
+    fetchHistoryOnly();
   }
 
-  fetchHistory();
-  lastFullRefreshAt = Date.now();
+  bootstrapMonitor();
   setInterval(refreshTick, pollMs);
 
   document.querySelectorAll('.range-btn').forEach(function (btn) {
@@ -647,8 +769,8 @@
       document.querySelectorAll('.range-btn').forEach(function (b) { b.classList.remove('active'); });
       btn.classList.add('active');
       currentMinutes = parseInt(btn.getAttribute('data-minutes'), 10);
-      fetchHistory();
-      lastFullRefreshAt = Date.now();
+      if (cachedMetrics) applyCachedHistoryToCharts();
+      else fetchHistoryOnly();
     });
   });
 })();

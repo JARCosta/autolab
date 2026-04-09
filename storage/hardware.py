@@ -1,22 +1,57 @@
 """Hardware metrics storage (SQLite) and device naming helpers.
 
-Machines send samples via HTTP (see ``hardware_client`` / ``hardware_push_agent``);
-``/api/monitor/push`` writes rows here. The monitor blueprint only reads this DB for the UI.
+Machines send samples via HTTP to ``/api/monitor/push``; this module persists rows
+and serves monitor queries.
 """
 
 from __future__ import annotations
 
 import math
 import os
+import re
+import socket
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import paths
-from hardware_client import get_local_device_name, normalize_device_name
 from logging_config import setup_logging
 
 log = setup_logging("hardware")
+
+_DEVICE_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
+
+
+def normalize_device_name(name: str | None) -> str:
+    """Return a safe device id, or empty string if invalid."""
+    if not name or not isinstance(name, str):
+        return ""
+    s = name.strip()
+    if not s or len(s) > 64 or not _DEVICE_RE.match(s):
+        return ""
+    return s
+
+
+def _installer_computer_name() -> str:
+    if os.name == "nt":
+        n = os.environ.get("COMPUTERNAME", "").strip()
+        if n:
+            return n
+    n = os.environ.get("HOSTNAME", "").strip()
+    if n:
+        return n.split(".")[0]
+    try:
+        return socket.gethostname().split(".")[0]
+    except OSError:
+        return ""
+
+
+def get_local_device_name() -> str:
+    env = normalize_device_name(os.getenv("HARDWARE_DEVICE_NAME", "").strip())
+    if env:
+        return env
+    raw = _installer_computer_name()
+    return normalize_device_name(raw) or "local"
 
 # Drop hardware rows older than this to cap DB size (~2.6M rows/month at 1 Hz per device).
 HARDWARE_RETENTION_DAYS = 30
@@ -218,8 +253,8 @@ def store_metrics(
             _prune_before(conn, cutoff)
 
 
-# Max samples per POST (monitor ingest); ~1 h at 1 Hz.
-HARDWARE_PUSH_BATCH_MAX = 3600
+# Max samples per POST (monitor ingest); 6 h at 1 Hz.
+HARDWARE_PUSH_BATCH_MAX = 21600
 
 
 def store_metrics_batch(samples: list[dict[str, Any]], *, device: str | None = None) -> None:
@@ -319,9 +354,33 @@ def get_metrics_history(
         .isoformat()
         .replace("+00:00", "Z")
     )
+    fields = ", ".join(_HW_SELECT_FIELDS)
     with sqlite3.connect(paths.HARDWARE_DB) as conn:
         conn.row_factory = sqlite3.Row
-        fields = ", ".join(_HW_SELECT_FIELDS)
+        cur = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM hardware_metrics
+            WHERE device = ? AND timestamp >= ?
+            """,
+            (dev, cutoff),
+        )
+        n = int(cur.fetchone()[0])
+        if n <= 0:
+            return []
+        if n <= max_points or n <= 1:
+            cur = conn.execute(
+                f"""
+                SELECT {fields}
+                FROM hardware_metrics
+                WHERE device = ? AND timestamp >= ?
+                ORDER BY timestamp ASC
+                """,
+                (dev, cutoff),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+        stride = max(1, math.ceil(n / max_points))
         cur = conn.execute(
             f"""
             SELECT {fields}
@@ -331,15 +390,18 @@ def get_metrics_history(
             """,
             (dev, cutoff),
         )
-        rows = [dict(r) for r in cur.fetchall()]
-    n = len(rows)
-    if n <= max_points or n <= 1:
-        return rows
-    stride = max(1, math.ceil(n / max_points))
-    sampled = rows[::stride]
-    if sampled[-1]["timestamp"] != rows[-1]["timestamp"]:
-        sampled.append(rows[-1])
-    return sampled
+        out: list[dict] = []
+        i = 0
+        last_row: dict | None = None
+        for row in cur:
+            d = dict(row)
+            last_row = d
+            if i % stride == 0:
+                out.append(d)
+            i += 1
+        if last_row and out and out[-1]["timestamp"] != last_row["timestamp"]:
+            out.append(last_row)
+        return out
 
 
 def get_latest_metric(*, device: str | None = None) -> dict | None:

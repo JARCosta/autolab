@@ -17,7 +17,14 @@ RUN apt-get update -qq && \
         zlib1g-dev \
         libfreetype6-dev \
         curl \
-        util-linux && \
+        util-linux \
+        ca-certificates && \
+    curl -fsSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+        -o /etc/apt/trusted.gpg.d/ngrok.asc && \
+    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" \
+        > /etc/apt/sources.list.d/ngrok.list && \
+    apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends ngrok && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python deps
