@@ -10,49 +10,131 @@
   <link rel="stylesheet" href="{{ url_for('streamelements.static', filename='streamelements.css', v=asset_version) }}">
 </head>
 <body>
-  <div class="container">
-    <nav><a href="/">&larr; Home</a></nav>
-    <h1>StreamElements Balances</h1>
+  <div class="notif"><div class="notif-inner" id="notif"></div></div>
 
-    <div class="table-box">
-      <table>
-        <thead>
-          <tr>
-            <th>Channel</th>
-            {% for b in bettors %}<th class="balance">{{ b }}</th>{% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for channel, cells in rows %}
-          <tr>
-            <td class="channel-name">{{ channel }}</td>
-            {% for bettor, balance in cells %}
-            <td class="balance" data-channel="{{ channel }}" data-bettor="{{ bettor }}">{{ balance }}</td>
+  <div class="app-shell se-shell">
+    <aside class="sidebar se-sidebar">
+      <h2 class="se-sidebar-title">Twitch channels</h2>
+      <p class="sidebar-lead">Per-channel viewers (who is on IRC and who bets). Add a channel by name; you will be asked for its StreamElements account id if it is new or you change ids. Restart AutoLab after saving.</p>
+      <div id="channel-list" class="channel-list"></div>
+
+      <div class="add-panel">
+        <label class="add-label" for="add-channel-input">Add channel</label>
+        <div class="add-row">
+          <input type="text" id="add-channel-input" class="add-channel-input" placeholder="Twitch channel name" autocomplete="off" spellcheck="false">
+          <button type="button" id="add-channel-btn">+ Add</button>
+        </div>
+      </div>
+
+      <button type="button" class="save-btn" id="save-btn">Save</button>
+    </aside>
+
+    <div id="ch-meta-dlg" class="modal-overlay is-hidden" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="ch-meta-dlg-title">
+        <h3 class="modal-title" id="ch-meta-dlg-title">Channel</h3>
+        <div class="modal-fields">
+          <div class="modal-label-row">
+            <label class="modal-label" for="ch-meta-sid">StreamElements account ID <span class="modal-req">*</span></label>
+            <a id="ch-meta-sid-api" class="modal-help-link" href="#" target="_blank" rel="noopener noreferrer">Open channel JSON (<code>_id</code>)</a>
+          </div>
+          <input type="text" id="ch-meta-sid" class="modal-input" autocomplete="off" spellcheck="false">
+          <label class="modal-label" for="ch-meta-steam">Steam ID <span class="modal-hint">(optional)</span></label>
+          <input type="text" id="ch-meta-steam" class="modal-input" autocomplete="off" spellcheck="false">
+          <label class="modal-label" for="ch-meta-faceit">FACEIT ID <span class="modal-hint">(optional)</span></label>
+          <input type="text" id="ch-meta-faceit" class="modal-input" autocomplete="off" spellcheck="false">
+        </div>
+        <p class="modal-error is-hidden" id="ch-meta-err"></p>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn" id="ch-meta-cancel">Cancel</button>
+          <button type="button" class="modal-btn primary" id="ch-meta-confirm">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="se-main">
+      <nav class="se-nav">
+        <a href="/">&larr; Home</a>
+      </nav>
+      <h1 class="se-page-title">StreamElements Balances</h1>
+
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>Channel</th>
+              {% for b in bettors %}<th class="balance">{{ b }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for channel, cells in rows %}
+            <tr>
+              <td class="channel-name">{{ channel }}</td>
+              {% for bettor, balance in cells %}
+              <td class="balance" data-channel="{{ channel }}" data-bettor="{{ bettor }}">{{ balance }}</td>
+              {% endfor %}
+            </tr>
             {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="chart-box is-hidden" id="chart-panel">
-      <h2 id="chart-title"></h2>
-      <div class="chart-controls is-hidden" id="chart-controls">
-        <button type="button" class="range-btn" data-days="7">7 d</button>
-        <button type="button" class="range-btn" data-days="30">30 d</button>
-        <button type="button" class="range-btn" data-days="90">90 d</button>
-        <button type="button" class="range-btn" data-days="180">6 mo</button>
-        <button type="button" class="range-btn active" data-days="">All</button>
+          </tbody>
+        </table>
       </div>
-      <div class="chart-wrap" id="chart-wrap">
-        <canvas id="chart"></canvas>
-      </div>
-      <p class="chart-empty is-hidden" id="chart-empty">No history yet for this balance.</p>
-    </div>
 
-    <p class="status" id="status">Loading fresh data&hellip;</p>
+      <div class="chart-box is-hidden" id="chart-panel">
+        <h2 id="chart-title"></h2>
+        <div class="chart-controls is-hidden" id="chart-controls">
+          <button type="button" class="range-btn" data-days="7">7 d</button>
+          <button type="button" class="range-btn" data-days="30">30 d</button>
+          <button type="button" class="range-btn" data-days="90">90 d</button>
+          <button type="button" class="range-btn" data-days="180">6 mo</button>
+          <button type="button" class="range-btn active" data-days="">All</button>
+        </div>
+        <div class="chart-wrap" id="chart-wrap">
+          <canvas id="chart"></canvas>
+        </div>
+        <p class="chart-empty is-hidden" id="chart-empty">No history yet for this balance.</p>
+      </div>
+
+      <section class="setup-panel" id="setup-panel" aria-label="Channel database setup">
+        <h2 class="setup-title">Channels &amp; accounts</h2>
+        <p class="setup-lead">Stored in the balance SQLite file (<code>channels</code>, <code>accounts</code>, <code>viewers</code>). Export a JSON snapshot, paste to restore, or add rows one at a time. The <code>viewers</code> table links each channel to accounts and whether each account places bets there.</p>
+        <div class="setup-grid">
+          <div class="setup-col">
+            <h3 class="setup-h">Snapshot JSON</h3>
+            <button type="button" class="setup-btn" id="export-layout-btn">Download JSON</button>
+            <label class="setup-label" for="import-layout-text">Paste snapshot (replaces all)</label>
+            <textarea id="import-layout-text" class="setup-textarea" rows="8" spellcheck="false" placeholder='{"accounts":{"jrcosta":{},"el_pipow":{}},"channels":{...}}'></textarea>
+            <button type="button" class="setup-btn primary" id="import-layout-btn">Apply snapshot</button>
+          </div>
+          <div class="setup-col">
+            <h3 class="setup-h">Add account</h3>
+            <p class="setup-sub">Twitch login (stored lowercase, e.g. <code>el_pipow</code>).</p>
+            <div class="setup-row">
+              <input type="text" id="new-bettor-id" class="setup-input" placeholder="Twitch username (any casing)" autocomplete="off">
+            </div>
+            <button type="button" class="setup-btn" id="add-bettor-btn">Add account</button>
+            <h3 class="setup-h">Add channel</h3>
+            <div class="setup-row">
+              <input type="text" id="new-ch-name" class="setup-input" placeholder="Channel name" autocomplete="off">
+              <input type="text" id="new-ch-seid" class="setup-input" placeholder="StreamElements account id" autocomplete="off">
+            </div>
+            <div class="setup-row">
+              <input type="text" id="new-ch-steam" class="setup-input" placeholder="SteamId (optional)" autocomplete="off">
+              <input type="text" id="new-ch-faceit" class="setup-input" placeholder="FaceitId (optional)" autocomplete="off">
+            </div>
+            <p class="setup-sub">Viewers for this channel (unchecked = channel only in pool; use sidebar to add viewers later):</p>
+            <div id="new-ch-bettors" class="setup-account-checks"></div>
+            <label class="setup-label">Places bets as</label>
+            <select id="new-ch-primary" class="setup-select"><option value="">—</option></select>
+            <button type="button" class="setup-btn" id="add-channel-btn">Add channel</button>
+          </div>
+        </div>
+      </section>
+
+      <p class="status" id="status">Loading fresh data&hellip;</p>
+    </div>
   </div>
 
   <script src="{{ url_for('streamelements.static', filename='streamelements.js', v=asset_version) }}"></script>
+  <script src="{{ url_for('streamelements.static', filename='channels.js', v=asset_version) }}"></script>
+  <script src="{{ url_for('streamelements.static', filename='layout_setup.js', v=asset_version) }}"></script>
 </body>
 </html>

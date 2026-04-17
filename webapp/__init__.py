@@ -30,11 +30,11 @@ def create_app():
     def inject_asset_version():
         return {"asset_version": asset_version}
 
+    from webapp.boost import boost_bp
     from webapp.home import home_bp
     from webapp.monitor import monitor_bp
     from webapp.streamelements import streamelements_bp
     from webapp.telegram import telegram_bp
-    from webapp.boost import boost_bp
 
     app.register_blueprint(home_bp, url_prefix="/")
     app.register_blueprint(streamelements_bp, url_prefix="/")

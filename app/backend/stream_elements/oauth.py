@@ -44,7 +44,7 @@ def check_oauth_token(username):
 
     if not os.path.exists(OAUTH_FILE):
         oauth = {}
-        log.info("Set %s's oauth token", username.upper())
+        log.info("Set %s's oauth token", username)
         return set_oauth_token(oauth, username)
 
     with open(OAUTH_FILE, "r", encoding="utf-8") as f:
@@ -58,8 +58,8 @@ def check_oauth_token(username):
         }
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
-            log.info("%s's oauth token is valid", username.upper())
+            log.info("%s's oauth token is valid", username)
             return oauth[username]
         else:
-            log.info("%s's oauth token is invalid", username.upper())
+            log.info("%s's oauth token is invalid", username)
             return set_oauth_token(oauth, username)

@@ -11,16 +11,18 @@ Supports two node modes:
 
 import os
 import time
+from urllib.parse import urlparse, urlunparse
 
 import requests as req_lib
 from flask import Blueprint, jsonify, render_template, request
 
 from logging_config import setup_logging
-from storage.hardware import (
+from app.backend.storage.hardware_db import (
     HARDWARE_PUSH_BATCH_MAX,
     get_latest_metric,
     get_local_device_name,
     get_metrics_history,
+    get_metrics_since,
     list_device_names,
     normalize_device_name,
     reassign_device_metrics,
@@ -45,7 +47,7 @@ monitor_bp = Blueprint(
 _registered_nodes: dict[str, dict] = {}
 _viewer_activity: dict[str, float] = {}
 
-VIEWER_ACTIVE_TIMEOUT = 10  # seconds (monotonic)
+VIEWER_ACTIVE_TIMEOUT = 90  # seconds (monotonic) — must exceed the longest client poll interval
 
 
 def _update_viewer_activity(device: str) -> None:
@@ -104,6 +106,31 @@ def _hardware_secret() -> str:
     return os.getenv("HARDWARE_TOKEN", "").strip()
 
 
+def _candidate_fetch_endpoints(device: str, node_url: str) -> list[str]:
+    """Build primary+fallback fetch endpoints for a registered node."""
+    endpoints: list[str] = [f"{node_url}{NODE_FETCH_PATH}"]
+    info = _registered_nodes.get(device) or {}
+    source_ip = str(info.get("source_ip") or "").strip()
+    if not source_ip:
+        return endpoints
+    parsed = urlparse(node_url)
+    if not parsed.scheme or not parsed.netloc:
+        return endpoints
+    advertised_host = (parsed.hostname or "").strip()
+    if not advertised_host or advertised_host == source_ip:
+        return endpoints
+    fallback_netloc = source_ip
+    if parsed.port is not None:
+        fallback_netloc = f"{source_ip}:{parsed.port}"
+    fallback_url = urlunparse(
+        (parsed.scheme, fallback_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    ).rstrip("/")
+    fallback_endpoint = f"{fallback_url}{NODE_FETCH_PATH}"
+    if fallback_endpoint not in endpoints:
+        endpoints.append(fallback_endpoint)
+    return endpoints
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -112,12 +139,6 @@ def _hardware_secret() -> str:
 @monitor_bp.route("/monitor")
 def monitor():
     return render_template("monitor.html")
-
-
-@monitor_bp.route("/api/monitor/devices")
-def monitor_devices():
-    devices = list_device_names()
-    return jsonify({"devices": devices})
 
 
 @monitor_bp.route("/api/monitor/history")
@@ -130,18 +151,30 @@ def monitor_history():
     max_points = request.args.get("max_points", 4000, type=int)
     max_points = min(max(max_points, 100), 20_000)
     metrics = get_metrics_history(minutes, max_points=max_points, device=device)
-    latest = get_latest_metric(device=device)
+    latest = metrics[-1] if metrics else get_latest_metric(device=device)
     devices = list_device_names()
     return jsonify({"metrics": metrics, "latest": latest, "devices": devices})
 
 
-@monitor_bp.route("/api/monitor/latest")
-def monitor_latest():
+@monitor_bp.route("/api/monitor/history_delta")
+def monitor_history_delta():
+    """
+    Return only samples newer than a client-provided timestamp.
+
+    Used by the dashboard poll loop to append fresh batches efficiently.
+    """
     device = request.args.get("device") or ""
     _update_viewer_activity(_resolve_device(device))
 
-    metric = get_latest_metric(device=device)
-    return jsonify({"metric": metric})
+    since = (request.args.get("since") or "").strip()
+    if not since:
+        return jsonify({"error": "missing since"}), 400
+
+    max_points = request.args.get("max_points", 5000, type=int)
+    max_points = min(max(max_points, 1), 20_000)
+    metrics = get_metrics_since(since, max_points=max_points, device=device)
+    latest = metrics[-1] if metrics else get_latest_metric(device=device)
+    return jsonify({"metrics": metrics, "latest": latest})
 
 
 # ---------------------------------------------------------------------------
@@ -183,8 +216,19 @@ def monitor_register():
         store_metrics_batch(cleaned, device=dev)
         inserted = len(cleaned)
 
-    _registered_nodes[dev] = {"url": node_url, "registered_at": time.time()}
-    log.info("[REGISTRY] device=%s url=%s inserted=%d", dev, node_url, inserted)
+    source_ip = (request.remote_addr or "").strip()
+    _registered_nodes[dev] = {
+        "url": node_url,
+        "registered_at": time.time(),
+        "source_ip": source_ip,
+    }
+    log.info(
+        "[REGISTRY] device=%s url=%s source_ip=%s inserted=%d",
+        dev,
+        node_url,
+        source_ip or "unknown",
+        inserted,
+    )
     return jsonify({"ok": True, "device": dev, "inserted": inserted})
 
 
@@ -224,16 +268,29 @@ def monitor_fetch_now():
     if not secret:
         return jsonify({"error": "hardware auth disabled (set HARDWARE_TOKEN)"}), 503
 
-    endpoint = f"{node_url}{NODE_FETCH_PATH}"
-    log.info("[FETCH] requesting device=%s endpoint=%s", dev, endpoint)
-    try:
-        r = req_lib.post(
-            endpoint,
-            json={"token": secret},
-            timeout=120,
-        )
-    except req_lib.RequestException as exc:
-        return jsonify({"error": f"node request failed: {exc}"}), 502
+    endpoints = _candidate_fetch_endpoints(dev, node_url)
+    r = None
+    last_exc: req_lib.RequestException | None = None
+    selected_endpoint = endpoints[0]
+    for endpoint in endpoints:
+        selected_endpoint = endpoint
+        log.info("[FETCH] requesting device=%s endpoint=%s", dev, endpoint)
+        try:
+            r = req_lib.post(
+                endpoint,
+                json={"token": secret},
+                timeout=120,
+            )
+            last_exc = None
+            break
+        except req_lib.RequestException as exc:
+            last_exc = exc
+            continue
+    if r is None:
+        return jsonify({
+            "error": f"node request failed: {last_exc}",
+            "attempted_endpoints": endpoints,
+        }), 502
 
     try:
         body = r.json()
@@ -245,12 +302,12 @@ def monitor_fetch_now():
             "error": "node rejected request",
             "node_status": r.status_code,
             "node_response": body,
+            "node_endpoint": selected_endpoint,
         }), 502
 
-    latest = get_latest_metric(device=dev)
     inserted = body.get("inserted") if isinstance(body, dict) else None
     log.info("[FETCH] device=%s accepted inserted=%s", dev, inserted)
-    return jsonify({"ok": True, "node": body, "latest": latest, "device": dev})
+    return jsonify({"ok": True, "node": body, "device": dev})
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +404,6 @@ def monitor_reassign_device():
         return jsonify({"error": "source and target must be different"}), 400
 
     moved = reassign_device_metrics(source, target)
-    latest = get_latest_metric(device=target)
     devices = list_device_names()
     return jsonify(
         {
@@ -355,7 +411,6 @@ def monitor_reassign_device():
             "moved": moved,
             "source": source,
             "target": target,
-            "latest": latest,
             "devices": devices,
         }
     )

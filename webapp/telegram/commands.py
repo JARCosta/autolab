@@ -1,11 +1,11 @@
 """Telegram bot command handlers."""
-from notifications import send_message
-from storage.balances import get_balance_rows
+from app.backend.notifications import send_message
+from app.backend.storage.balances_db import fetch_and_store_balances
 
 
 def balance_overview():
     message = ""
-    for channel, rows in get_balance_rows():
+    for channel, rows in fetch_and_store_balances():
         message += f"{channel}:\n"
         for bettor, balance in rows:
             message += f"\t {bettor}: {balance}\n"
@@ -14,13 +14,13 @@ def balance_overview():
 
 
 def wallapop_overview():
-    from wallapop_tracker.tracker import SearchTerms
+    from app.backend.wallapop_tracker.tracker import SearchTerms
     terms = SearchTerms()
     send_message(f"Wallapop Tracker Overview:\n{terms}\n", notification=True)
 
 
 def search_wallapop_term(term: str, category: int = None, min_price: int = None, max_price: int = None):
-    from wallapop_tracker.tracker import SearchTerms
+    from app.backend.wallapop_tracker.tracker import SearchTerms
     terms = SearchTerms()
     new_id = terms.add_search_term(term, category, min_price, max_price)
     if new_id is not None:

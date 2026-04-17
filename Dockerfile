@@ -6,6 +6,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Repo root so `app.backend.*` and top-level webapp, paths, logging_config resolve.
+ENV PYTHONPATH=/app
+
 # System deps for numpy/matplotlib/requests/websocket-client
 RUN apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends \

@@ -8,6 +8,7 @@ services:
     environment:
       - AUTOLAB_UID=${UID:-1000}
       - AUTOLAB_GID=${GID:-1000}
+      - PYTHONPATH=/app
     volumes:
       - ./data:/app/data
     ports:

@@ -17,13 +17,13 @@ import requests
 import websocket
 
 import paths
-from notifications import (
+from app.backend.notifications import (
     add_telegram_log,
     send_image_threaded,
     send_message_threaded,
     send_telegram_log,
 )
-from stream_elements import utils
+from . import utils
 
 RESOURCES_DIR = paths.STREAMELEMENTS_RESOURCES_DIR
 DELAY_DEFAULT = 2.05
@@ -111,6 +111,8 @@ def test_connection(ws: websocket.WebSocketApp) -> bool:
 
 def get_active_contest(channel: str):
     channel_id = utils.get_streamelements_id(channel)
+    if not channel_id:
+        return None, None
     while True:
         try:
             r = requests.get(f"https://api.streamelements.com/kappa/v2/contests/{channel_id}/active", timeout=10)
@@ -128,6 +130,8 @@ def get_active_contest(channel: str):
 
 def get_contest_details(channel: str, contest_id: str):
     channel_id = utils.get_streamelements_id(channel)
+    if not channel_id:
+        return None
     while True:
         try:
             r = requests.get(f"https://api.streamelements.com/kappa/v2/contests/{channel_id}/{contest_id}", timeout=10)
@@ -154,12 +158,14 @@ def optimal_bet(options: dict) -> tuple[str, int]:
         send_message_threaded(f"Error calculating optimal bet: Incomplete probabilities data\nOptions: {options}", notification=True)
         options_probabilities = {option: 1 / len(options) for option in options.keys()}
 
+    sum_of_amounts = sum(options_amounts.values())
+
     no_bet_options = [option for option, amount in options_amounts.items() if amount == 0]
-    if len(options) == len(no_bet_options):
+    if sum_of_amounts < 500:
         return None, 0
     if len(no_bet_options) > 0:
-        max_probability_option = max(no_bet_options, key=lambda opt: options_probabilities[opt])
-        return max_probability_option, 0
+        max_probability_no_bet_option = max(no_bet_options, key=lambda option: options_probabilities[option])
+        return max_probability_no_bet_option, 0
 
     expected_returns = {option: sum(options_amounts.values()) / amount * options_probabilities[option] for option, amount in options_amounts.items()}
     best_option = max(expected_returns, key=lambda opt: expected_returns[opt])
@@ -254,7 +260,7 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
     if any(option["probability"] is None for option in options.values()):
         for option in options.values():
             option["probability"] = 1 / len(options)
-    balance = utils.get_balance(channel, username)
+    balance = utils.fetch_balance(channel, username)
     utils.sleep_until(end - datetime.timedelta(seconds=get_variable_delay()), kill_thread=kill_thread)
 
     end, contest_json = get_active_contest(channel.lower())

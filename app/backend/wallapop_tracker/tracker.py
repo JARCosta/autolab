@@ -8,7 +8,7 @@ import traceback
 import requests
 
 import paths
-from notifications import send_message
+from app.backend.notifications import send_message
 
 _SEARCH_TERMS_FILE = paths.WALLAPOP_SEARCH_TERMS_FILE
 _DATA_FILE = paths.WALLAPOP_DATA_FILE

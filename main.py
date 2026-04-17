@@ -7,33 +7,43 @@ import threading
 
 from dotenv import load_dotenv
 
-from config import STREAMELEMENTS_BETTORS, WALLAPOP_POLL_ENABLED
-
 load_dotenv()
 
+WALLAPOP_POLL_ENABLED = False
+
 if __name__ == "__main__":
-    import notifications
+    import app.backend.notifications as notifications
+    from app.backend.notifications.telegram import TelegramChannel
+
     from logging_config import setup_logging
-    from notifications.telegram import TelegramChannel
 
     log = setup_logging("autolab")
     notifications.set_channel(TelegramChannel())
 
     kill_event = threading.Event()
 
-    from stream_elements.oauth import check_oauth_token
+    from app.backend.storage.balances_db.channels_data import (
+        active_channels_nested,
+        get_bettors_list,
+    )
+    from app.backend.storage.balances_db.repository import init_db
 
-    OAUTH = {
-        "El_Pipow": check_oauth_token("El_Pipow"),
-        "JRCosta": check_oauth_token("JRCosta"),
-    }
+    init_db()
+
+    from app.backend.stream_elements.oauth import check_oauth_token
+
+
+
+    viewers = [viewer_id for channel_data in active_channels_nested().values() for viewer_id in channel_data["Bettors"].keys()]
+    viewers = list(set(viewers))
+    OAUTH = {viewer_id: check_oauth_token(viewer_id) for viewer_id in viewers}
 
     threads = []
 
-    from stream_elements.bettor import Bettor
+    from app.backend.stream_elements.bettor import Bettor
 
-    for channel, bettors in STREAMELEMENTS_BETTORS.items():
-        for username, is_bettor in bettors.items():
+    for channel, data in active_channels_nested().items():
+        for username, is_bettor in data["Bettors"].items():
             args = (channel, username, OAUTH[username], kill_event, is_bettor)
             t = threading.Thread(target=Bettor, args=args, daemon=False)
             threads.append(t)
@@ -42,12 +52,12 @@ if __name__ == "__main__":
     t_webapp = threading.Thread(target=webapp.launch, args=(), daemon=True)
     threads.append(t_webapp)
 
-    from boost_bot.main import run_bot as run_discord_bot
+    from app.backend.boost_bot.main import run_bot as run_discord_bot
     t_discord = threading.Thread(target=run_discord_bot, args=(), daemon=True)
     threads.append(t_discord)
 
     if WALLAPOP_POLL_ENABLED:
-        from wallapop_tracker.tracker import SearchRunner
+        from app.backend.wallapop_tracker.tracker import SearchRunner
 
         def run_wallapop():
             runner = SearchRunner()

@@ -7,8 +7,8 @@ import os
 # Base data directory (gitignored); OAuth, Wallapop, and log buffer live here
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
-# Balance cache for instant dashboard load (SQLite)
-BALANCE_CACHE_DB = os.path.join(DATA_DIR, "balance_cache.db")
+# StreamElements balances: append-only history; latest row per (channel, bettor) is current (SQLite)
+BALANCE_DB = os.path.join(DATA_DIR, "balance_cache.db")
 
 # OAuth (Twitch tokens, auto-refreshed)
 OAUTH_FILE = os.path.join(DATA_DIR, "oauth.json")

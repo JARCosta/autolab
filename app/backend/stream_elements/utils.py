@@ -9,24 +9,25 @@ from typing import Any, Dict, Optional
 
 import requests
 
-import config
 import paths
+from app.backend.notifications import send_message, send_message_threaded
+from app.backend.storage.balances_db.channels_data import get_channel_meta, streamelements_account_id
 from logging_config import setup_logging
-from notifications import send_message, send_message_threaded
 
 log = setup_logging("stream_elements.utils")
 RESOURCES_DIR = paths.STREAMELEMENTS_RESOURCES_DIR
 
 
-def get_streamelements_id(channel: str) -> str:
-    try:
-        return config.CHANNELS[channel.lower()]["StreamElementsId"]
-    except (KeyError, ValueError):
-        send_message_threaded(f"ValueError:\n No StreamElements id found for {channel}", notification=True)
+def get_streamelements_id(channel: str) -> str | None:
+    sid = streamelements_account_id(channel)
+    if sid:
+        return sid
+    send_message_threaded(f"ValueError:\n No StreamElements id found for {channel}", notification=True)
+    return None
 
 
 def compute_probabilities(channel: str, options: dict) -> str:
-    channel_data = config.CHANNELS.get(channel.lower(), {})
+    channel_data = get_channel_meta(channel) or {}
 
     if "SteamId" not in channel_data:
         send_message_threaded(f"[{channel}] No SteamId found for {channel}. Cannot compute probabilities from Faceit.", notification=True)
@@ -59,14 +60,16 @@ def compute_probabilities(channel: str, options: dict) -> str:
         send_message_threaded("More than 2 options found in contest. Cannot compute probabilities from Faceit.", notification=True)
 
 
-def get_balance(channel: str, username: str) -> int:
+def fetch_balance(channel: str, username: str) -> int:
     channel_id = get_streamelements_id(channel)
+    if not channel_id:
+        return 0
     response = requests.get(f"https://api.streamelements.com/kappa/v2/points/{channel_id}/{username.lower()}")
     if response.json().get("error") == "Not Found":
         return 0
     elif response.status_code != 200:
         send_message_threaded(f"Error {response.status_code} getting balance for {username} in {channel}\n{response.json()}", notification=True)
-        return get_balance(channel, username)
+        return fetch_balance(channel, username)
     return int(response.json()["points"])
 
 

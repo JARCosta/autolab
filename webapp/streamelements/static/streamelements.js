@@ -9,6 +9,8 @@
   var historyDays = null;
   var selectedChannel = null;
   var selectedBettor = null;
+  var historySeriesCache = {};
+  var historySeriesInflight = {};
 
   var gridColor = 'rgba(255,255,255,0.06)';
   var tickColor = '#888';
@@ -72,40 +74,69 @@
     return balanceChart;
   }
 
+  function historyDaysKey() {
+    return historyDays != null && historyDays > 0 ? String(historyDays) : 'all';
+  }
+
+  function ensureHistorySeries() {
+    var k = historyDaysKey();
+    if (historySeriesCache[k]) {
+      return Promise.resolve(historySeriesCache[k]);
+    }
+    if (historySeriesInflight[k]) {
+      return historySeriesInflight[k];
+    }
+    var q = historyDays != null && historyDays > 0 ? 'days=' + historyDays : '';
+    historySeriesInflight[k] = fetch('/api/balance_history_batch?' + q)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        historySeriesCache[k] = data.series || {};
+        delete historySeriesInflight[k];
+        return historySeriesCache[k];
+      })
+      .catch(function (err) {
+        delete historySeriesInflight[k];
+        throw err;
+      });
+    return historySeriesInflight[k];
+  }
+
+  function applyHistoryChart(channel, bettor, points) {
+    points = points || [];
+    if (!points.length) {
+      if (balanceChart) {
+        balanceChart.data.datasets[0].data = [];
+        balanceChart.update();
+      }
+      chartWrap.style.display = 'none';
+      chartTitle.textContent = channel + ' - ' + bettor;
+      chartEmpty.style.display = 'block';
+      document.getElementById('chart-controls').style.display = 'flex';
+      chartPanel.style.display = 'block';
+      return;
+    }
+    chartEmpty.style.display = 'none';
+    chartWrap.style.display = 'block';
+    document.getElementById('chart-controls').style.display = 'flex';
+
+    var chart = ensureChart();
+    chart.data.datasets[0].data = points
+      .filter(function (p) { return p.balance != null; })
+      .map(function (p) { return { x: new Date(p.updated_at), y: p.balance }; });
+    chart.update();
+
+    chartTitle.textContent = channel + ' - ' + bettor;
+    chartPanel.style.display = 'block';
+  }
+
   function loadHistory(channel, bettor) {
     selectedChannel = channel;
     selectedBettor = bettor;
-    var q = 'channel=' + encodeURIComponent(channel) + '&bettor=' + encodeURIComponent(bettor);
-    if (historyDays != null && historyDays > 0) {
-      q += '&days=' + historyDays;
-    }
-    fetch('/api/balance_history?' + q)
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (!data.points || !data.points.length) {
-          if (balanceChart) {
-            balanceChart.data.datasets[0].data = [];
-            balanceChart.update();
-          }
-          chartWrap.style.display = 'none';
-          chartTitle.textContent = channel + ' - ' + bettor;
-          chartEmpty.style.display = 'block';
-          document.getElementById('chart-controls').style.display = 'flex';
-          chartPanel.style.display = 'block';
-          return;
-        }
-        chartEmpty.style.display = 'none';
-        chartWrap.style.display = 'block';
-        document.getElementById('chart-controls').style.display = 'flex';
-
-        var chart = ensureChart();
-        chart.data.datasets[0].data = data.points
-          .filter(function (p) { return p.balance != null; })
-          .map(function (p) { return { x: new Date(p.updated_at), y: p.balance }; });
-        chart.update();
-
-        chartTitle.textContent = channel + ' - ' + bettor;
-        chartPanel.style.display = 'block';
+    ensureHistorySeries()
+      .then(function (series) {
+        var row = series[channel];
+        var points = row && row[bettor] ? row[bettor] : [];
+        applyHistoryChart(channel, bettor, points);
       })
       .catch(function () {});
   }
@@ -169,4 +200,6 @@
   });
 
   attachCellClickHandlers();
+
+  ensureHistorySeries().catch(function () {});
 })();
