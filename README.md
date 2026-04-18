@@ -4,130 +4,105 @@ Production monorepo for autonomous services running on a home server.
 
 ## Services
 
-| Service | Description |
-|---------|-------------|
-| **stream_elements** | Twitch IRC bots that auto-bet on StreamElements contests using Faceit win probability |
-| **webapp** | Flask app exposed via ngrok tunnel — hosts the Telegram bot webhook and is extensible for future UIs/APIs |
-| **boost_bot** | Discord bot for game queue management with Elo ranking (git submodule) |
-| **wallapop_tracker** | Polls Wallapop for new listings matching search terms and sends Telegram notifications |
+| Service | Location | Description |
+|---------|----------|-------------|
+| **stream_elements** | `app/backend/stream_elements/` | Twitch IRC clients that watch StreamElements chat, optional auto-betting on contests (Faceit probabilities, etc.) |
+| **webapp** | `webapp/` | Flask app (Blueprints) — balances UI, hardware monitor, boost queue UI, Telegram webhook |
+| **boost_bot** | `app/backend/boost_bot/` | Discord bot for game queue / Elo (git submodule) |
+| **wallapop_tracker** | `app/backend/wallapop_tracker/` | Optional Wallapop search notifications via Telegram |
+| **autolab-node** | `autolab-node/` | Separate Node tooling (submodule); not required for `python main.py` |
 
-## Quick Start
+## Quick start
 
 ```bash
-# Clone with submodules
 git clone --recurse-submodules git@github.com:JARCosta/autolab.git
 cd autolab
 
-# Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Set up credentials
 cp .env.example .env
-# Edit .env with your actual tokens
+# Edit .env with your tokens
 
-# Run
+# Repo root must be on PYTHONPATH so `app.backend.*` and `webapp` resolve
+export PYTHONPATH="$(pwd)"
 python main.py
 ```
 
+Docker sets `PYTHONPATH=/app` for you; for local runs, keep `PYTHONPATH` pointing at the repository root (or configure the same in your IDE).
+
 ## Credentials
 
-All secrets live in a single `.env` file (never committed). See `.env.example` for the full list:
+Secrets live in `.env` (never committed). See `.env.example` for variables: Telegram, Discord, ngrok, optional hardware monitor, optional `FACEIT_API_KEY`.
 
-| Variable | Used by |
-|----------|---------|
-| `TELEGRAM_NOTIFICATION_TOKEN` | Telegram bot (user-facing messages) |
-| `TELEGRAM_LOGS_TOKEN` | Telegram bot (log channel) |
-| `TELEGRAM_USER_ID` | Telegram bot (recipient chat ID) |
-| `TELEGRAM_WEBHOOK_PUBLIC_URL` | Optional full HTTPS webhook URL (skips ngrok; use with reverse proxy / tunnel) |
-| `DISCORD_TOKEN` | BoostBot (Discord bot) |
-| `NGROK_AUTH_TOKEN` | Webapp (ngrok tunnel for webhook) |
-| `FACEIT_API_KEY` | StreamElements (win probability from Faceit) |
+- Twitch OAuth (device flow) is handled by `app/infrastructure/twitch/oauth.py` and stored in `data/oauth.json` (gitignored).
 
-Twitch OAuth tokens are auto-refreshed and stored in `data/oauth.json` (gitignored).
-
-## Project Structure
+## Project structure
 
 ```
 autolab/
-├── main.py                   # Process orchestrator
-├── config.py                 # Non-secret configuration (channels, bettors, WALLAPOP_POLL_ENABLED)
-├── paths.py                  # Centralized data/resource paths (no magic strings elsewhere)
-├── .env                      # Secrets (gitignored)
-├── .env.example              # Template
-├── requirements.txt          # Python dependencies (pinned)
+├── main.py                 # Orchestrator: threads for Bettors, webapp, Discord; optional Wallapop
+├── paths.py                # Data paths under data/ + repo-root stream_elements/resources/
+├── logging_config.py
+├── requirements.txt
+├── .env / .env.example
 │
-├── notifications/            # User-facing channel (frontend); domain services push here
-│   ├── __init__.py           # API: send_message, send_image, log buffer, set_channel()
-│   └── telegram.py           # Telegram channel (your frontend)
+├── app/
+│   ├── backend/            # Domain-oriented Python (not “infrastructure”)
+│   │   ├── notifications/  # Notification channel API; Telegram implementation
+│   │   ├── stream_elements/  # Bettor, betting runner, contests, odds, Twitch chat helpers
+│   │   ├── boost_bot/
+│   │   └── wallapop_tracker/
+│   │
+│   └── infrastructure/     # Adapters: persistence + outbound HTTP + Twitch OAuth
+│       ├── storage/        # SQLite (balances, hardware metrics, …)
+│       ├── http/           # streamelements, faceit, twitch (outbound APIs)
+│       └── twitch/         # OAuth device flow + token file
 │
-├── webapp/                   # Flask app (extensible with Blueprints)
-│   ├── __init__.py           # App factory + ngrok
-│   ├── balance_data.py       # Shared on-demand data (balance table for Telegram + web)
-│   ├── dashboard/            # Web UI Blueprint (e.g. / = balance table)
-│   │   ├── __init__.py
-│   │   └── templates/
-│   └── telegram/             # Telegram bot Blueprint
-│       ├── webhook.py        # /webhook route
-│       └── commands.py       # Bot commands (/balance, /wallapop, etc.)
+├── webapp/                 # Flask: inbound HTTP (UI + APIs + Telegram webhook)
+│   ├── home/ shared/ telegram/
+│   └── modules/            # Feature UIs: streamelements, monitor, boost
 │
-├── stream_elements/          # Twitch StreamElements betting
-│   ├── bettor.py             # IRC connection + bet handling
-│   ├── betting.py            # Optimal bet calculation + analysis
-│   ├── oauth.py              # Twitch OAuth token management
-│   └── utils.py              # Twitch message parsing, Faceit API
-│
-├── boost_bot/                # Discord bot (git submodule)
-│
-├── wallapop_tracker/         # Wallapop listing notifications
-│   └── tracker.py            # Search, track, notify
-│
-└── data/                     # Runtime data (gitignored)
-    ├── oauth.json            # Auto-refreshed Twitch tokens
-    └── wallapop/             # Search terms + listing data
+├── stream_elements/        # Resources only (variable delay, logs JSON) — paths point here
+├── data/                   # Runtime DBs, oauth.json, wallapop, boost JSON (gitignored)
+├── autolab-node/           # Submodule (optional)
+└── docker-compose.yml Dockerfile entrypoint.sh
 ```
 
-## Running with Docker
+**Imports:** Outside callers may use the small public API on the package, e.g. `from app.backend.stream_elements import Bettor, fetch_balance`. Inside `stream_elements`, import concrete modules (`bettor`, `se_helpers`, `twitch_chat`, …) directly.
 
-The repo includes a simple Docker setup:
+**Notifications:** Domain code calls `app.backend.notifications` (implementation set in `main.py` to Telegram). Inbound Telegram HTTP lives under `webapp/telegram/`.
+
+## Docker
 
 ```bash
-cp .env.example .env      # fill in your tokens
+cp .env.example .env
 docker compose up --build -d
 ```
 
-- The container runs `python main.py` and exposes port `5000` (Flask webapp / ngrok entry).
-- `./data` on the host is mounted as `/app/data` in the container, so OAuth tokens and Wallapop data persist across rebuilds.
-- The process runs as your user (UID/GID from the host), so files created in `./data` are owned by you, not root.
+- Runs `python main.py`, exposes port **5000**.
+- Mounts `./data` → `/app/data`; process UID/GID match the host where configured.
 
-## Telegram Bot Commands
+## Telegram bot commands
 
 | Command | Description |
 |---------|-------------|
-| `/balance` | Show StreamElements balance across all channels |
-| `/wallapop` | Show active Wallapop search terms |
-| `/search_term <term>` | Add a new Wallapop search term |
-| `/reboot` | Reboot the server |
-| `/restart` | Restart the autolab service |
+| `/balance` | StreamElements balance overview |
+| `/wallapop` | Wallapop tracker overview |
+| `/search_term …` | Add a Wallapop search term |
+| `/reboot` | Reboot host |
+| `/restart` | Restart the autolab unit |
 
-## Logs (Docker)
+## Logs
 
-All components use the shared `logging_config` module: logs go to stderr with a `[level] [name]` format so `docker compose logs -f` prefixes every line with `autolab  |`. The app runs in a **single process** with **threads** (Bettors, webapp, Discord bot), which keeps memory low and log output consistent.
-
-## Notifications and paths
-
-- **notifications**: The notification *channel* is your user-facing side (frontend). Domain services (stream_elements betting, wallapop_tracker, webapp commands) send messages via `notifications.send_message()` and related helpers. In `main.py` the channel is set to the Telegram implementation, so domain code does not depend on the webapp.
-- **paths**: All data and resource paths live in `paths.py` (`data/`, OAuth, Wallapop, StreamElements resources, log buffer). Other modules import from `paths` instead of hardcoding paths.
+Single process, multiple threads; shared `logging_config`. In Docker, logs go to stderr for `docker compose logs -f`.
 
 ## Wallapop background polling
 
-The Wallapop tracker can run in two ways: (1) **On demand** — Telegram commands `/wallapop` and `/search_term` work anytime; (2) **Background polling** — set `WALLAPOP_POLL_ENABLED = True` in `config.py` to start a thread that runs one process per search term and notifies via the notification abstraction. Default is `False`.
+Telegram commands work on demand. For a background poller thread, set `WALLAPOP_POLL_ENABLED = True` in **`main.py`** (default `False`).
 
-## Adding New Webapp Modules
+## Adding a Flask blueprint
 
-The webapp uses Flask Blueprints. To add a new module (e.g. a dashboard):
-
-1. Create `webapp/dashboard/__init__.py` with a `Blueprint`
-2. Register it in `webapp/__init__.py` → `create_app()`
-3. All modules share the same ngrok tunnel
+1. For a feature page, add `webapp/modules/<name>/__init__.py` with a `Blueprint` (see `streamelements`, `monitor`, `boost`). Top-level shells use `webapp/home/` or `webapp/telegram/`.
+2. Register it in `webapp/__init__.py` → `create_app()`.

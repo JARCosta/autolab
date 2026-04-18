@@ -1,0 +1,41 @@
+/* Toast strip (StreamElements + Boost) */
+.notif {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.notif-inner {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  opacity: 0;
+  transform: translateY(-1rem);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: auto;
+}
+.notif-inner.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.notif-inner.warn {
+  background: #3e2e0e;
+  border: 1px solid #6b4f1a;
+  color: #ffc107;
+}
+.notif-inner.error {
+  background: #3e1010;
+  border: 1px solid #6b1a1a;
+  color: #f44336;
+}
+.notif-inner.ok {
+  background: #0e3e14;
+  border: 1px solid #1a6b28;
+  color: #4caf50;
+}

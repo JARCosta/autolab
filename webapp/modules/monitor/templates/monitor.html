@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoLab — Hardware Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
+  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
+  <link rel="stylesheet" href="{{ url_for('monitor.static', filename='monitor.css', v=asset_version) }}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h2>Charts</h2>
+      <label><input type="checkbox" data-chart="load" checked> CPU + GPU load</label>
+      <label><input type="checkbox" data-chart="clock" checked> CPU + GPU clock</label>
+      <label><input type="checkbox" data-chart="temp" checked> CPU + GPU temp</label>
+      <label><input type="checkbox" data-chart="ram_swap" checked> RAM + swap</label>
+      <label><input type="checkbox" data-chart="gpu_mem" checked> VRAM</label>
+      <label><input type="checkbox" data-chart="pcie" checked> PCIe MB/s</label>
+    </aside>
+
+    <div class="main">
+      <nav><a href="/">&larr; AutoLab</a></nav>
+      <h1>Hardware Monitor</h1>
+
+      <div class="device-row">
+        <label for="device-select">Device</label>
+        <select id="device-select" aria-label="Device"></select>
+        <div class="merge-action">
+          <button
+            type="button"
+            id="device-merge-toggle"
+            class="merge-toggle-btn"
+            title="Move/Rename device data"
+            aria-label="Move/Rename device data"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 20L8.5 18.9L19.2 8.2C19.9 7.5 19.9 6.4 19.2 5.7L18.3 4.8C17.6 4.1 16.5 4.1 15.8 4.8L5.1 15.5L4 20Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M13.7 6.9L17.1 10.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div id="device-merge-popover" class="merge-popover" hidden>
+            <p class="merge-popover-title">Move all samples to device</p>
+            <input
+              id="device-merge-target"
+              type="text"
+              list="device-name-list"
+              placeholder="Target name (e.g. h0m3l4b)"
+              aria-label="Target device name"
+            >
+            <datalist id="device-name-list"></datalist>
+            <div class="merge-popover-actions">
+              <button type="button" id="device-merge-btn" class="merge-btn">Move</button>
+              <button type="button" id="device-merge-cancel" class="merge-cancel-btn">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="gpu-banner warn" id="gpu-status" role="status">GPU: checking&hellip;</p>
+
+      <div class="readings">
+        <div class="reading"><div class="reading-label">Load CPU / GPU</div><div class="reading-value" id="cur-load"><span id="cur-load-cpu">&mdash;</span><span class="reading-sep"> / </span><span id="cur-load-gpu">&mdash;</span></div></div>
+        <div class="reading"><div class="reading-label">Clock (GHz)</div><div class="reading-value" id="cur-clock"><span id="cur-clock-cpu">&mdash;</span><span class="reading-sep"> / </span><span id="cur-clock-gpu">&mdash;</span></div></div>
+        <div class="reading"><div class="reading-label">Temp CPU / GPU</div><div class="reading-value" id="cur-temp"><span id="cur-temp-cpu">&mdash;</span><span class="reading-sep"> / </span><span id="cur-temp-gpu">&mdash;</span></div></div>
+        <div class="reading"><div class="reading-label">RAM</div><div class="reading-value" id="cur-ram">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">Swap</div><div class="reading-value" id="cur-swap">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">VRAM</div><div class="reading-value" id="cur-gmem">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">PCIe host &rarr; GPU</div><div class="reading-value" id="cur-pcie-tx">&mdash;</div></div>
+        <div class="reading"><div class="reading-label">PCIe GPU &rarr; host</div><div class="reading-value" id="cur-pcie-rx">&mdash;</div></div>
+      </div>
+
+      <div class="controls">
+        <button type="button" class="fetch-btn" id="fetch-now-btn">Request sample now</button>
+        <button type="button" class="range-btn" data-minutes="15">15 min</button>
+        <button type="button" class="range-btn" data-minutes="60">1 h</button>
+        <button type="button" class="range-btn" data-minutes="360">6 h</button>
+        <button type="button" class="range-btn" data-minutes="1440">24 h</button>
+        <button type="button" class="range-btn active" data-minutes="10080">7 d</button>
+      </div>
+
+      <div class="chart-box" data-chart-panel="load">
+        <h2>CPU and GPU load (%)</h2>
+        <div class="chart-wrap"><canvas id="chart-load"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="clock">
+        <h2>CPU and GPU clock (GHz)</h2>
+        <div class="chart-wrap"><canvas id="chart-clock"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="temp">
+        <h2>CPU and GPU temperature (&deg;C)</h2>
+        <div class="chart-wrap"><canvas id="chart-temp"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="ram_swap">
+        <h2>RAM and swap used (%)</h2>
+        <div class="chart-wrap"><canvas id="chart-ram-swap"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="gpu_mem">
+        <h2>VRAM Used (%)</h2>
+        <div class="chart-wrap"><canvas id="chart-gpu-mem"></canvas></div>
+      </div>
+      <div class="chart-box" data-chart-panel="pcie">
+        <h2>PCIe throughput (MB/s)</h2>
+        <p class="pcie-note">Green: host &rarr; GPU (TX). Red: GPU &rarr; host (RX). Often 0 when idle.</p>
+        <div class="chart-wrap"><canvas id="chart-pcie"></canvas></div>
+      </div>
+
+      <p class="status" id="status"></p>
+      <p class="note">
+        Collection: <strong>psutil</strong> for CPU, RAM, swap, and CPU temperature where the OS exposes them.
+        GPU load, VRAM, GPU temperature, clocks, and PCIe throughput use <strong>nvidia-smi</strong> when available.
+      </p>
+    </div>
+  </div>
+
+  <script src="{{ url_for('monitor.static', filename='monitor.js', v=asset_version) }}"></script>
+</body>
+</html>

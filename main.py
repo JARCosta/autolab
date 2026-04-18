@@ -14,7 +14,6 @@ WALLAPOP_POLL_ENABLED = False
 if __name__ == "__main__":
     import app.backend.notifications as notifications
     from app.backend.notifications.telegram import TelegramChannel
-
     from logging_config import setup_logging
 
     log = setup_logging("autolab")
@@ -22,15 +21,14 @@ if __name__ == "__main__":
 
     kill_event = threading.Event()
 
-    from app.backend.storage.balances_db.channels_data import (
+    from app.infrastructure.storage.balances_db.channels_data import (
         active_channels_nested,
-        get_bettors_list,
     )
-    from app.backend.storage.balances_db.repository import init_db
+    from app.infrastructure.storage.balances_db.repository import init_db
 
     init_db()
 
-    from app.backend.stream_elements.oauth import check_oauth_token
+    from app.infrastructure.twitch.oauth import check_oauth_token
 
 
 
@@ -40,7 +38,7 @@ if __name__ == "__main__":
 
     threads = []
 
-    from app.backend.stream_elements.bettor import Bettor
+    from app.backend.stream_elements import Bettor
 
     for channel, data in active_channels_nested().items():
         for username, is_bettor in data["Bettors"].items():

@@ -1,14 +1,14 @@
 """
 Flask application factory with optional ngrok tunnel management.
 
-The webapp is designed to be extensible -- each feature is a Flask Blueprint.
-Currently registered blueprints:
-  - home: Web UI landing page at /
-  - streamelements: balances UI + API routes
-  - telegram: Telegram bot webhook and messaging helpers
+Blueprints:
+  - shared: site-wide static (/static/shared/…)
+  - home: landing page at /
+  - modules.streamelements, modules.monitor, modules.boost: feature UIs + APIs
+  - telegram: webhook + helpers
 
-To add a new module:
-  1. Create webapp/<name>/__init__.py with a Blueprint
+To add a feature UI:
+  1. Add webapp/modules/<name>/ with a Blueprint
   2. Register it in create_app() below
 """
 import logging
@@ -30,12 +30,14 @@ def create_app():
     def inject_asset_version():
         return {"asset_version": asset_version}
 
-    from webapp.boost import boost_bp
     from webapp.home import home_bp
-    from webapp.monitor import monitor_bp
-    from webapp.streamelements import streamelements_bp
+    from webapp.modules.boost import boost_bp
+    from webapp.modules.monitor import monitor_bp
+    from webapp.modules.streamelements import streamelements_bp
+    from webapp.shared import shared_bp
     from webapp.telegram import telegram_bp
 
+    app.register_blueprint(shared_bp, url_prefix="/")
     app.register_blueprint(home_bp, url_prefix="/")
     app.register_blueprint(streamelements_bp, url_prefix="/")
     app.register_blueprint(monitor_bp, url_prefix="/")

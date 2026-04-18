@@ -1,6 +1,6 @@
 """Telegram bot command handlers."""
 from app.backend.notifications import send_message
-from app.backend.storage.balances_db import fetch_and_store_balances
+from app.infrastructure.storage.balances_db import fetch_and_store_balances
 
 
 def balance_overview():

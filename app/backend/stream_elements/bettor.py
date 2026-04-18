@@ -9,9 +9,19 @@ import websocket
 
 from logging_config import setup_logging
 from app.backend.notifications import add_telegram_log, send_message, send_telegram_log
-from app.backend.storage.balances_db import fetch_and_store_balance
+from app.infrastructure.storage.balances_db import fetch_and_store_balance
 
-from . import betting, utils
+from .betting_runner import betting_function
+from .contests import get_active_contest
+from .local_state import change_variable_delay, contest_to_bet, get_last_bet, save_last_bet
+from .odds import bet_stats
+from .twitch_chat import (
+    check_if_mentioned,
+    get_message_frequency,
+    is_message_on_cooldown,
+    parse_twitch_message,
+    set_sent_message_timestamp,
+)
 
 log = setup_logging("bettor")
 
@@ -61,11 +71,11 @@ class Bettor:
         self.launched_event.wait()
         if self.bettor:
             try:
-                betting.betting_function(self.ws, self.username, self.channel, self.kill_event)
+                betting_function(self.ws, self.username, self.channel, self.kill_event)
             except Exception:
                 send_message(traceback.format_exc(), notification=True)
 
-            _, contest = betting.get_active_contest(self.channel)
+            _, contest = get_active_contest(self.channel)
             if contest:
                 self.last_contest = contest
         try:
@@ -93,12 +103,12 @@ class Bettor:
 
     def on_message(self, ws: websocket.WebSocketApp, message: str):
         self.connect(ws, message)
-        parsed = utils.parse_twitch_message(message)
+        parsed = parse_twitch_message(message)
         if parsed is None or parsed["command"] != "PRIVMSG":
             return
         message_text = parsed["message"]
         sender = parsed["source"]["nick"]
-        mentioned = utils.check_if_mentioned(message_text, self.username)
+        mentioned = check_if_mentioned(message_text, self.username)
 
         if sender.lower() != "streamelements" and sender.lower() != "nightbot":
             if mentioned:
@@ -106,11 +116,11 @@ class Bettor:
                     send_message(f"[{self.channel}, {self.username}] {sender}: {message_text}", log=False, notification=True)
                 return
             if self.repeater:
-                message_frequency = utils.get_message_frequency(self.channel, message_text)
-                if message_frequency > 5 and not utils.is_message_on_cooldown(self.channel, message_text):
+                message_frequency = get_message_frequency(self.channel, message_text)
+                if message_frequency > 5 and not is_message_on_cooldown(self.channel, message_text):
                     send_message(f"[{self.channel}, {self.username}] High frequency message detected: {message_text}\n", notification=True)
                     ws.send(f"PRIVMSG #{self.channel.lower()} : {message_text}")
-                    utils.set_sent_message_timestamp(self.channel, message_text)
+                    set_sent_message_timestamp(self.channel, message_text)
                 return
             return
 
@@ -123,18 +133,18 @@ class Bettor:
 
         if "a new contest has started" in message_text:
             try:
-                threading.Thread(target=betting.betting_function, args=[ws, self.username, self.channel, self.kill_event]).start()
+                threading.Thread(target=betting_function, args=[ws, self.username, self.channel, self.kill_event]).start()
             except Exception:
                 send_message(f"[{self.channel}, {self.username}] Error on betting thread:\n {traceback.format_exc()}", notification=True)
 
         elif "won the contest" in message_text:
-            last_bet = betting.get_last_bet(self.channel)
+            last_bet = get_last_bet(self.channel)
             if self.last_contest is None or last_bet is None or self.last_contest["contest"]["_id"] != last_bet["contest_id"]:
                 return
             if message_text.split('"')[1].lower() == last_bet["bet_option"]:
                 options = {option: {"amount": int(value), "probability": None} for option, value in last_bet["options"].items()}
                 options[last_bet["bet_option"]]["amount"] -= last_bet["bet_amount"]
-                _, bet_profit, bet_odd = betting.bet_stats(options, last_bet["bet_option"], last_bet["bet_amount"])
+                _, bet_profit, bet_odd = bet_stats(options, last_bet["bet_option"], last_bet["bet_amount"])
                 telegram_message = f"Won a bet of {last_bet['bet_amount']} points\n"
                 telegram_message += f"Profit: {round(bet_profit, 3)} points at odd {round(bet_odd, 3)}\n"
                 send_telegram_log()
@@ -156,27 +166,27 @@ class Bettor:
             log.info("[%s, %s] %s: %s", self.channel, self.username, sender, message_text)
             if user.lower() == self.username.lower():
                 time.sleep(10)
-                _, contest = betting.get_active_contest(self.channel.lower())
+                _, contest = get_active_contest(self.channel.lower())
                 if contest:
-                    last_bet = betting.contest_to_bet(contest, bet_option, bet_amount)
-                    betting.save_last_bet(self.channel, last_bet)
+                    last_bet = contest_to_bet(contest, bet_option, bet_amount)
+                    save_last_bet(self.channel, last_bet)
                 # Bet placement normally changes the user's balance quickly.
                 with suppress(Exception):
                     fetch_and_store_balance(self.channel, self.username)
 
         elif mentioned and ", there is no contest currently running" in message_text:
             telegram_message = f"[{self.channel}, {self.username}] {sender}: {message_text}\n"
-            end, _ = betting.get_active_contest(self.channel)
+            end, _ = get_active_contest(self.channel)
             if end is None:
                 telegram_message += "No active contest found.\n"
             else:
                 telegram_message += f"Contest closed at {end}.\n"
             send_message(telegram_message, log=False, notification=True)
-            betting.change_variable_delay()
+            change_variable_delay()
 
         elif "no longer accepting bets" in message_text:
             time.sleep(2)
-            _, contest = betting.get_active_contest(self.channel)
+            _, contest = get_active_contest(self.channel)
             if contest:
                 self.last_contest = contest
 
