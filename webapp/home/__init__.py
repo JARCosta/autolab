@@ -1,6 +1,8 @@
 """Home Blueprint: top-level app landing page."""
 from flask import Blueprint, render_template
 
+from app.runtime.modules import modules_for_home
+
 home_bp = Blueprint(
     "home",
     __name__,
@@ -12,4 +14,4 @@ home_bp = Blueprint(
 
 @home_bp.route("/")
 def home():
-    return render_template("index.html")
+    return render_template("index.html", modules=modules_for_home())

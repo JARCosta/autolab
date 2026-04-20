@@ -4,8 +4,12 @@ Flask application factory with optional ngrok tunnel management.
 Blueprints:
   - shared: site-wide static (/static/shared/…)
   - home: landing page at /
-  - modules.streamelements, modules.monitor, modules.boost: feature UIs + APIs
-  - telegram: webhook + helpers
+  - modules.streamelements, modules.monitor, modules.boost,
+    modules.wallapop, modules.system: feature UIs + APIs
+
+The ``monitor`` blueprint is registered conditionally on
+``modules.json["monitor"]`` (the rest of the per-module toggles control
+separate docker-compose services and don't gate webapp routes).
 
 To add a feature UI:
   1. Add webapp/modules/<name>/ with a Blueprint
@@ -30,19 +34,28 @@ def create_app():
     def inject_asset_version():
         return {"asset_version": asset_version}
 
+    from app.runtime.modules import is_enabled
     from webapp.home import home_bp
     from webapp.modules.boost import boost_bp
-    from webapp.modules.monitor import monitor_bp
     from webapp.modules.streamelements import streamelements_bp
+    from webapp.modules.system import system_bp
+    from webapp.modules.wallapop import wallapop_bp
     from webapp.shared import shared_bp
     from webapp.telegram import telegram_bp
 
     app.register_blueprint(shared_bp, url_prefix="/")
     app.register_blueprint(home_bp, url_prefix="/")
     app.register_blueprint(streamelements_bp, url_prefix="/")
-    app.register_blueprint(monitor_bp, url_prefix="/")
     app.register_blueprint(telegram_bp)
     app.register_blueprint(boost_bp, url_prefix="/")
+    app.register_blueprint(wallapop_bp, url_prefix="/")
+    app.register_blueprint(system_bp, url_prefix="/")
+
+    if is_enabled("monitor"):
+        from webapp.modules.monitor import monitor_bp
+        app.register_blueprint(monitor_bp, url_prefix="/")
+    else:
+        log.info("Hardware Monitor disabled in modules.json; skipping blueprint.")
 
     return app
 

@@ -12,12 +12,78 @@ h1 {
 .subtitle {
   color: #666;
   font-size: 0.85rem;
-  margin-bottom: 2.25rem;
+  margin-bottom: 1.5rem;
 }
+
+/* ── Restart banner (visible when toggles differ from page load) ─ */
+.restart-banner {
+  background: #1f1a10;
+  border: 1px solid #5a4520;
+  color: #ffd58a;
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 1.25rem;
+}
+.restart-inner p { margin: 0 0 0.5rem; }
+.restart-title { font-weight: 600; color: #ffe0b2; }
+.restart-hint { color: #e0c090; }
+.restart-footnote {
+  margin-top: 0.65rem !important;
+  font-size: 0.75rem;
+  color: #a08050;
+}
+.restart-banner code {
+  background: #2a2215;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.78em;
+}
+.restart-cmd {
+  margin: 0.4rem 0 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: #0f0f0f;
+  border: 1px solid #3a3020;
+  border-radius: 0.35rem;
+  color: #e8e0d0;
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+.copy-btn {
+  background: #3a3020;
+  color: #ffd58a;
+  border: 1px solid #5a4520;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+}
+.copy-btn:hover { background: #4a4030; }
+.save-btn {
+  background: #2f6f3a;
+  color: #e8ffe8;
+  border: 1px solid #459757;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+.save-btn:hover { background: #388945; }
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Module grid ──────────────────────────────────────────────── */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.75rem;
+}
+.card-wrap {
+  position: relative;
 }
 .card {
   display: block;
@@ -27,11 +93,14 @@ h1 {
   padding: 1.25rem;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.2s, background 0.15s;
+  transition: border-color 0.2s, background 0.15s, opacity 0.2s;
 }
 .card:hover {
   border-color: #555;
   background: #1f1f1f;
+}
+.card.card-off {
+  opacity: 0.5;
 }
 .card-icon {
   width: 2rem;
@@ -46,6 +115,7 @@ h1 {
 .card-icon.green { background: rgba(76, 175, 80, 0.15); color: #4caf50; }
 .card-icon.blue { background: rgba(66, 165, 245, 0.15); color: #42a5f5; }
 .card-icon.orange { background: rgba(255, 152, 0, 0.15); color: #ff9800; }
+.card-icon.purple { background: rgba(171, 71, 188, 0.15); color: #ab47bc; }
 .card-title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -56,3 +126,41 @@ h1 {
   color: #888;
   line-height: 1.45;
 }
+
+/* ── Toggle switch (top-right of each card) ───────────────────── */
+.toggle {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  display: inline-block;
+  width: 30px;
+  height: 17px;
+  cursor: pointer;
+  z-index: 2;
+}
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle .slider {
+  position: absolute;
+  inset: 0;
+  background: #3a3a3a;
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+.toggle .slider::before {
+  content: "";
+  position: absolute;
+  height: 13px;
+  width: 13px;
+  left: 2px;
+  top: 2px;
+  background: #ddd;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.toggle input:checked + .slider { background: #4caf50; }
+.toggle input:checked + .slider::before { transform: translateX(13px); }
+.toggle input:disabled + .slider { opacity: 0.6; cursor: default; }

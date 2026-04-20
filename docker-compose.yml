@@ -1,16 +1,44 @@
+x-autolab-base: &autolab-base
+  build: .
+  env_file:
+    - .env
+  environment:
+    - AUTOLAB_UID=${UID:-1000}
+    - AUTOLAB_GID=${GID:-1000}
+    - PYTHONPATH=/app
+  volumes:
+    - ./data:/app/data
+  restart: on-failure
+
 services:
-  autolab:
-    build: .
-    container_name: autolab
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - AUTOLAB_UID=${UID:-1000}
-      - AUTOLAB_GID=${GID:-1000}
-      - PYTHONPATH=/app
-    volumes:
-      - ./data:/app/data
+  # ── Webapp (always on) ───────────────────────────────────────
+  # Hosts the home dashboard, the per-module toggle API, and the Telegram
+  # webhook. Other services are pulled in via compose --profile <name>.
+  autolab-web:
+    <<: *autolab-base
+    container_name: autolab-web
+    command: ["python", "-m", "app.runtime.entrypoint", "web"]
     ports:
       - "5000:5000"
+    restart: unless-stopped
 
+  # ── StreamElements / Twitch bettor threads ───────────────────
+  autolab-bettors:
+    <<: *autolab-base
+    container_name: autolab-bettors
+    command: ["python", "-m", "app.runtime.entrypoint", "bettors"]
+    profiles: ["bettors"]
+
+  # ── Discord boost_bot (CS2 custom queue) ─────────────────────
+  autolab-discord:
+    <<: *autolab-base
+    container_name: autolab-discord
+    command: ["python", "-m", "app.runtime.entrypoint", "discord"]
+    profiles: ["discord"]
+
+  # ── Wallapop search tracker ──────────────────────────────────
+  autolab-wallapop:
+    <<: *autolab-base
+    container_name: autolab-wallapop
+    command: ["python", "-m", "app.runtime.entrypoint", "wallapop"]
+    profiles: ["wallapop"]

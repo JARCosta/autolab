@@ -33,9 +33,11 @@ RUN apt-get update -qq && \
 # Install Python deps
 COPY requirements.txt .
 RUN python -m venv /venv && \
-    . /venv/bin/activate && \
-    pip install --upgrade pip && \
-    pip install -r requirements.txt
+    /venv/bin/pip install --upgrade pip && \
+    /venv/bin/pip install -r requirements.txt
+
+# Make the venv interpreter the default `python` for any service command.
+ENV PATH="/venv/bin:${PATH}"
 
 # Copy app code (excluding .git etc via .dockerignore if present)
 COPY . .
@@ -45,9 +47,10 @@ RUN chmod +x /entrypoint.sh
 # Optional: run as this UID/GID so files in ./data are owned by your user (default 1000:1000)
 ENV AUTOLAB_UID=1000 AUTOLAB_GID=1000
 
-# Expose Flask/ngrok webapp port
+# Expose Flask/ngrok webapp port (only the web service publishes it via compose)
 EXPOSE 5000
 
+# Default to the web service; per-service compose entries override this.
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/bin/bash", "-lc", ". /venv/bin/activate && python main.py"]
+CMD ["python", "-m", "app.runtime.entrypoint", "web"]
 
