@@ -8,40 +8,51 @@
   <link rel="stylesheet" href="{{ url_for('wallapop.static', filename='wallapop.css', v=asset_version) }}">
 </head>
 <body>
-  <div class="container">
-    <a class="back" href="/">← Back</a>
-    <h1>Wallapop Tracker</h1>
-    <p class="subtitle">
-      Active search terms (read-only). Add or remove via Telegram:
-      <code>/search_term &lt;term&gt;</code>.
-    </p>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h2>Wallapop</h2>
+      <p class="sidebar-lead">Standardized module sidebar. Terms are managed through Telegram commands.</p>
+      <a class="side-link" href="#terms">Search terms</a>
+    </aside>
 
-    {% if terms %}
-    <table class="terms">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Search</th>
-          <th>Category</th>
-          <th>Min €</th>
-          <th>Max €</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in terms %}
-        <tr>
-          <td>{{ t.id }}</td>
-          <td>{{ t.search_str }}</td>
-          <td>{{ t.category if t.category is not none else '—' }}</td>
-          <td>{{ t.min_price if t.min_price is not none else '—' }}</td>
-          <td>{{ t.max_price if t.max_price is not none else '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="empty">No search terms configured.</p>
-    {% endif %}
+    <div class="main">
+      <nav><a href="/">&larr; AutoLab</a></nav>
+
+      <div class="container">
+        <h1>Wallapop Tracker</h1>
+        <p class="subtitle">
+          Active search terms (read-only). Add or remove via Telegram:
+          <code>/search_term &lt;term&gt;</code>.
+        </p>
+
+        {% if terms %}
+        <table class="terms" id="terms">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Search</th>
+              <th>Category</th>
+              <th>Min €</th>
+              <th>Max €</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in terms %}
+            <tr>
+              <td>{{ t.id }}</td>
+              <td>{{ t.search_str }}</td>
+              <td>{{ t.category if t.category is not none else '—' }}</td>
+              <td>{{ t.min_price if t.min_price is not none else '—' }}</td>
+              <td>{{ t.max_price if t.max_price is not none else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="empty">No search terms configured.</p>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </body>
 </html>

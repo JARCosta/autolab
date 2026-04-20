@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discord bot · AutoLab</title>
+  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
+  <link rel="stylesheet" href="{{ url_for('discord_bot.static', filename='discord_dashboard.css', v=asset_version) }}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h2>Discord</h2>
+      <p class="sidebar-lead">Standardized module sidebar. Queue and Elo actions happen in Discord slash commands.</p>
+      <a class="side-link" href="#commands">Slash commands</a>
+      <a class="side-link" href="#leaderboard">Leaderboard</a>
+    </aside>
+
+    <div class="main">
+      <nav><a href="/">&larr; AutoLab</a></nav>
+
+      <div class="container">
+        <h1>Discord bot</h1>
+        <p class="subtitle">
+          CS2-style queue and Elo live in Discord. This page mirrors the shared
+          <code>data/boost/players.json</code> stats the bot reads and updates.
+          Queues and matches are controlled only in your server via slash commands.
+        </p>
+
+        <section class="section" id="commands">
+          <h2>Slash commands</h2>
+          <table class="cmds">
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Who</th>
+                <th>What it does</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>/startqueue</code></td>
+                <td>Server admins</td>
+                <td>Creates a new joinable queue (optional title).</td>
+              </tr>
+              <tr>
+                <td><code>/kickfromqueue</code></td>
+                <td>Host or admin</td>
+                <td>Removes a member from the current queue.</td>
+              </tr>
+              <tr>
+                <td><code>/addtoqueue</code></td>
+                <td>Host or admin</td>
+                <td>Adds a member to the current queue.</td>
+              </tr>
+              <tr>
+                <td><code>/leaderboard</code></td>
+                <td>Everyone</td>
+                <td>Shows Elo and W–D–L in Discord (same data as the table below).</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="section" id="leaderboard">
+          <h2>Leaderboard</h2>
+          <p class="hint">Sorted by points. IDs are Discord user IDs.</p>
+          <div id="lb-status" class="lb-status" aria-live="polite">Loading…</div>
+          <div id="lb-table-wrap" class="lb-table-wrap is-hidden"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('discord_bot.static', filename='discord_dashboard.js', v=asset_version) }}"></script>
+</body>
+</html>

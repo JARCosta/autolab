@@ -4,8 +4,8 @@ Flask application factory with optional ngrok tunnel management.
 Blueprints:
   - shared: site-wide static (/static/shared/…)
   - home: landing page at /
-  - modules.streamelements, modules.monitor, modules.boost,
-    modules.wallapop, modules.system: feature UIs + APIs
+  - modules.streamelements, modules.monitor, modules.discord_bot,
+    modules.wallapop, modules.tailscale, modules.system: feature UIs + APIs
 
 The ``monitor`` blueprint is registered conditionally on
 ``modules.json["monitor"]`` (the rest of the per-module toggles control
@@ -36,9 +36,10 @@ def create_app():
 
     from app.runtime.modules import is_enabled
     from webapp.home import home_bp
-    from webapp.modules.boost import boost_bp
+    from webapp.modules.discord_bot import discord_bot_bp
     from webapp.modules.streamelements import streamelements_bp
     from webapp.modules.system import system_bp
+    from webapp.modules.tailscale import tailscale_bp
     from webapp.modules.wallapop import wallapop_bp
     from webapp.shared import shared_bp
     from webapp.telegram import telegram_bp
@@ -47,8 +48,9 @@ def create_app():
     app.register_blueprint(home_bp, url_prefix="/")
     app.register_blueprint(streamelements_bp, url_prefix="/")
     app.register_blueprint(telegram_bp)
-    app.register_blueprint(boost_bp, url_prefix="/")
+    app.register_blueprint(discord_bot_bp, url_prefix="/")
     app.register_blueprint(wallapop_bp, url_prefix="/")
+    app.register_blueprint(tailscale_bp, url_prefix="/")
     app.register_blueprint(system_bp, url_prefix="/")
 
     if is_enabled("monitor"):

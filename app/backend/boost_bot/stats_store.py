@@ -1,42 +1,31 @@
-import json
-import os
+import asyncio
 
-import aiofiles
 import discord
 
-from paths import BOOST_PLAYERS_FILE, BOOST_DIR
+from app.infrastructure.storage.discord_db import (
+    load_players_document,
+    save_players_document,
+)
 
 
 class PlayerStatsStore:
-    """Async read/write for player stats shared with the Boost webapp.
+    """Async façade over Discord player stats JSON (shared with the web dashboard).
 
     Data lives in ``data/boost/players.json`` (Discord user ID strings as keys).
     The ``guild_id`` argument is kept for call-site compatibility but does not
-    select a separate file; all guilds share the same leaderboard as the web UI.
+    select a separate file; all guilds share the same leaderboard.
 
     Legacy per-guild files under ``data/boost_bot/points/`` are no longer used.
     """
 
     def __init__(self, guild_id: int):
         self.guild_id = guild_id
-        try:
-            os.makedirs(BOOST_DIR, exist_ok=True)
-        except FileNotFoundError:
-            os.makedirs(os.path.dirname(BOOST_DIR), exist_ok=True)
-            os.makedirs(BOOST_DIR, exist_ok=True)
-        self.file_path = BOOST_PLAYERS_FILE
 
     async def load(self) -> dict:
-        try:
-            async with aiofiles.open(self.file_path, mode="r", encoding="utf-8") as f:
-                data = await f.read()
-                return json.loads(data) if data else {}
-        except Exception:
-            return {}
+        return await asyncio.to_thread(load_players_document)
 
     async def save(self, stats: dict):
-        async with aiofiles.open(self.file_path, mode="w", encoding="utf-8") as f:
-            await f.write(json.dumps(stats, indent=2))
+        await asyncio.to_thread(save_players_document, stats)
 
     def _ensure_entry(self, stats: dict, uid: int, name: str | None = None):
         key = str(uid)

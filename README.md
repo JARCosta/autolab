@@ -7,7 +7,7 @@ Production monorepo for autonomous services running on a home server.
 | Service | Location | Description |
 |---------|----------|-------------|
 | **stream_elements** | `app/backend/stream_elements/` | Twitch IRC clients that watch StreamElements chat, optional auto-betting on contests (Faceit probabilities, etc.) |
-| **webapp** | `webapp/` | Flask app (Blueprints) — balances UI, hardware monitor, boost queue UI, Telegram webhook |
+| **webapp** | `webapp/` | Flask app (Blueprints) — balances UI, hardware monitor, Discord bot dashboard, Telegram webhook |
 | **boost_bot** | `app/backend/boost_bot/` | Discord bot for game queue / Elo (git submodule) |
 | **wallapop_tracker** | `app/backend/wallapop_tracker/` | Optional Wallapop search notifications via Telegram |
 | **autolab-node** | `autolab-node/` | Separate Node tooling (submodule); not required for `python main.py` |
@@ -54,13 +54,14 @@ the banner reminds you and offers a copyable command).
 | `bettors` | `autolab-bettors` | `bettors` |
 | `discord` | `autolab-discord` | `discord` |
 | `wallapop` | `autolab-wallapop` | `wallapop` |
+| `tailscale` | `autolab-tailscale` | `tailscale` |
 | `monitor` | (UI inside `autolab-web`) | — |
 
 ## Credentials
 
 Secrets live in `.env` (never committed). See `.env.example` for variables: Telegram, Discord, ngrok, optional hardware monitor, optional `FACEIT_API_KEY`.
 
-- Twitch OAuth (device flow) is handled by `app/infrastructure/twitch/oauth.py` and stored in `data/oauth.json` (gitignored).
+- Twitch OAuth (device flow) is handled by `app/infrastructure/storage/twitch_oauth/service.py` and stored in `data/oauth.json` (gitignored).
 
 ## Project structure
 
@@ -85,14 +86,13 @@ autolab/
 │   │   ├── boost_bot/
 │   │   └── wallapop_tracker/
 │   │
-│   └── infrastructure/     # Adapters: persistence + outbound HTTP + Twitch OAuth
-│       ├── storage/        # SQLite (balances, hardware metrics, …)
+│   └── infrastructure/     # Adapters: persistence + outbound HTTP
+│       ├── storage/        # SQLite + JSON/CSV stores (discord_db, twitch_oauth, wallapop, ...)
 │       ├── http/           # streamelements, faceit, twitch (outbound APIs)
-│       └── twitch/         # OAuth device flow + token file
 │
 ├── webapp/                 # Flask: inbound HTTP (UI + APIs + Telegram webhook)
 │   ├── home/ shared/ telegram/
-│   └── modules/            # Feature UIs: streamelements, monitor, boost, wallapop, system
+│   └── modules/            # Feature UIs: streamelements, monitor, discord_bot, wallapop, system
 │
 ├── stream_elements/        # Resources only (variable delay, logs JSON) — paths point here
 ├── data/                   # Runtime DBs, oauth.json, wallapop, boost JSON, modules.json (gitignored)
@@ -116,7 +116,7 @@ bash scripts/start.sh
 docker compose --profile bettors --profile discord up --build -d
 ```
 
-- `autolab-web` always runs (port **5000**); `bettors`, `discord`, `wallapop` are profile-gated.
+- `autolab-web` always runs (port **5000**); `bettors`, `discord`, `wallapop`, `tailscale` are profile-gated.
 - Mounts `./data` → `/app/data`; process UID/GID match the host where configured.
 
 **Only `autolab-web` in `docker ps`?** StreamElements bettors and Discord do **not** run inside the web container; they are separate services (`autolab-bettors`, `autolab-discord`). The stack must be started with `scripts/start.sh` (or `docker compose --profile bettors … up`) so compose enables those profiles. Plain `docker compose up` without profiles starts **only** `autolab-web`. After changing `server-setup`, run `sudo systemctl daemon-reload` if you edited the `autolab` unit so `ExecStart` points at `scripts/start.sh`. Remove leftover one-off containers: `docker compose down --remove-orphans`.
@@ -135,6 +135,12 @@ docker compose --profile bettors --profile discord up --build -d
 
 Single process, multiple threads; shared `logging_config`. In Docker, logs go to stderr for `docker compose logs -f`.
 
+## Tailscale VPN
+
+Enable **Tailscale VPN** on the home page, open **`/tailscale`**, set an [auth key](https://login.tailscale.com/admin/settings/keys) (reusable / pre-approved), then **Save settings** and run **`autolab restart`**. The dashboard writes `data/tailscale_settings.json` and `data/tailscale.env`; `scripts/start.sh` creates a default `data/tailscale.env` if missing so compose can parse `env_file`.
+
+The `autolab-tailscale` service uses `network_mode: host`, `CAP_NET_ADMIN`, and `/dev/net/tun` (typical for subnet routing / exit nodes). For subnet routes or exit-node use, approve routes in the Tailscale admin console.
+
 ## Wallapop background polling
 
 Telegram commands work on demand. For background polling, enable the
@@ -143,7 +149,7 @@ Telegram commands work on demand. For background polling, enable the
 
 ## Adding a Flask blueprint
 
-1. For a feature page, add `webapp/modules/<name>/__init__.py` with a `Blueprint` (see `streamelements`, `monitor`, `boost`, `wallapop`). Top-level shells use `webapp/home/` or `webapp/telegram/`.
+1. For a feature page, add `webapp/modules/<name>/__init__.py` with a `Blueprint` (see `streamelements`, `monitor`, `discord_bot`, `wallapop`). Top-level shells use `webapp/home/` or `webapp/telegram/`.
 2. Register it in `webapp/__init__.py` → `create_app()`.
 
 ## Adding a toggleable module

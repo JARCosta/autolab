@@ -14,16 +14,14 @@ Adding a new module:
 """
 from __future__ import annotations
 
-import json
-import os
 import threading
 from dataclasses import dataclass
 from typing import Iterable
 
-import paths
-
-
-MODULES_STATE_FILE = os.path.join(paths.DATA_DIR, "modules.json")
+from app.infrastructure.storage.modules_state import (
+    load_modules_state,
+    save_modules_state,
+)
 
 
 @dataclass(frozen=True)
@@ -73,8 +71,8 @@ MODULES: tuple[ModuleSpec, ...] = (
     ModuleSpec(
         name="discord",
         label="CS2 Custom (Discord)",
-        description="Closed-server 5v5 boost_bot: ELO, balanced teams, match history.",
-        href="/boost",
+        description="Queue and Elo in Discord; web dashboard shows shared stats and commands.",
+        href="/discord",
         icon_color="orange",
         icon_svg=(
             '<svg width="16" height="16" viewBox="0 0 16 16" fill="none">'
@@ -92,6 +90,23 @@ MODULES: tuple[ModuleSpec, ...] = (
             '<svg width="16" height="16" viewBox="0 0 16 16" fill="none">'
             '<circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.3"/>'
             '<path d="M11 11L14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>'
+        ),
+        default_enabled=False,
+    ),
+    ModuleSpec(
+        name="tailscale",
+        label="Tailscale VPN",
+        description="Remote server/LAN access without port forwarding.",
+        href="/tailscale",
+        icon_color="teal",
+        icon_svg=(
+            '<svg width="16" height="16" viewBox="0 0 16 16" fill="none">'
+            '<circle cx="4" cy="4" r="2" fill="currentColor"/>'
+            '<circle cx="8" cy="4" r="2" fill="currentColor"/>'
+            '<circle cx="12" cy="4" r="2" fill="currentColor"/>'
+            '<circle cx="6" cy="8" r="2" fill="currentColor"/>'
+            '<circle cx="10" cy="8" r="2" fill="currentColor"/>'
+            '<circle cx="8" cy="12" r="2" fill="currentColor"/></svg>'
         ),
         default_enabled=False,
     ),
@@ -116,28 +131,14 @@ def _defaults() -> dict[str, bool]:
 def load_state() -> dict[str, bool]:
     """Read modules.json, applying defaults for missing/new entries."""
     with _STATE_LOCK:
-        data = _defaults()
-        try:
-            with open(MODULES_STATE_FILE, "r", encoding="utf-8") as f:
-                stored = json.load(f)
-            if isinstance(stored, dict):
-                for k, v in stored.items():
-                    if k in data:
-                        data[k] = bool(v)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
-        return data
+        return load_modules_state(_defaults())
 
 
 def save_state(state: dict[str, bool]) -> None:
     """Persist `state` (only known module keys are written)."""
-    known = _by_name()
-    cleaned = {k: bool(v) for k, v in state.items() if k in known}
+    known_keys = set(_by_name().keys())
     with _STATE_LOCK:
-        os.makedirs(os.path.dirname(MODULES_STATE_FILE), exist_ok=True)
-        with open(MODULES_STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(cleaned, f, indent=2)
-            f.write("\n")
+        save_modules_state(state, known_keys)
 
 
 def is_enabled(name: str) -> bool:

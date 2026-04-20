@@ -24,10 +24,13 @@ WALLAPOP_DATA_FILE = os.path.join(WALLAPOP_DIR, "data.csv")
 # Hardware monitor (CPU load, clock, temperature time series)
 HARDWARE_DB = os.path.join(DATA_DIR, "hardware.db")
 
-# Boost queue (webapp + Discord bot): shared player stats; matches are web-only
+# Tailscale module settings persisted by the web dashboard
+TAILSCALE_SETTINGS_FILE = os.path.join(DATA_DIR, "tailscale_settings.json")
+TAILSCALE_ENV_FILE = os.path.join(DATA_DIR, "tailscale.env")
+
+# Discord bot + web dashboard: path constants for ``app.infrastructure.storage.discord_db``
 BOOST_DIR = os.path.join(DATA_DIR, "boost")
 BOOST_PLAYERS_FILE = os.path.join(BOOST_DIR, "players.json")
-BOOST_MATCHES_FILE = os.path.join(BOOST_DIR, "matches.json")
 
 # StreamElements betting (per-channel state, variable delay, message logs)
 STREAMELEMENTS_RESOURCES_DIR = os.path.join(os.path.dirname(__file__), "stream_elements", "resources")

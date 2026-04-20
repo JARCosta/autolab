@@ -42,3 +42,20 @@ services:
     container_name: autolab-wallapop
     command: ["python", "-m", "app.runtime.entrypoint", "wallapop"]
     profiles: ["wallapop"]
+
+  # ── Tailscale (optional VPN / subnet router) ─────────────────
+  # Settings from the web dashboard write data/tailscale.env (see /tailscale).
+  autolab-tailscale:
+    image: tailscale/tailscale:latest
+    container_name: autolab-tailscale
+    profiles: ["tailscale"]
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ./data/tailscale-state:/var/lib/tailscale
+    env_file:
+      - data/tailscale.env
+    restart: unless-stopped

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tailscale · AutoLab</title>
+  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
+  <link rel="stylesheet" href="{{ url_for('tailscale.static', filename='tailscale.css', v=asset_version) }}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h2>Tailscale</h2>
+      <p class="sidebar-lead">Zero-port-forward remote access for your server and selected LAN services.</p>
+      <a class="side-link" href="#config">Config</a>
+      <a class="side-link" href="#preview">Startup preview</a>
+    </aside>
+
+    <div class="main">
+      <nav><a href="/">&larr; AutoLab</a></nav>
+
+      <div class="container">
+        <h1>Tailscale VPN</h1>
+        <p class="subtitle">
+          Toggle this module on the home page, then save here and run <code>autolab restart</code>.
+          Current module toggle: <strong id="module-enabled">{{ "enabled" if settings.module_enabled else "disabled" }}</strong>.
+        </p>
+
+        <form id="config" class="panel">
+          <label>Auth key (optional, keeps existing key when left blank)
+            <input id="auth_key" type="password" placeholder="tskey-auth-..." autocomplete="off">
+          </label>
+
+          <label>Hostname
+            <input id="hostname" type="text" value="{{ settings.hostname }}">
+          </label>
+
+          <label>Advertise routes (comma separated CIDRs)
+            <input id="advertise_routes" type="text" value="{{ settings.advertise_routes }}" placeholder="192.168.1.0/24,10.0.0.0/24">
+          </label>
+
+          <label>Extra tailscale args
+            <input id="extra_args" type="text" value="{{ settings.extra_args }}" placeholder="--snat-subnet-routes=false">
+          </label>
+
+          <div class="checks">
+            <label><input id="advertise_exit_node" type="checkbox" {% if settings.advertise_exit_node %}checked{% endif %}> Advertise as exit node</label>
+            <label><input id="accept_routes" type="checkbox" {% if settings.accept_routes %}checked{% endif %}> Accept subnet routes</label>
+            <label><input id="accept_dns" type="checkbox" {% if settings.accept_dns %}checked{% endif %}> Accept DNS from tailnet</label>
+            <label><input id="enable_ssh" type="checkbox" {% if settings.enable_ssh %}checked{% endif %}> Enable Tailscale SSH</label>
+            <label><input id="userspace" type="checkbox" {% if settings.userspace %}checked{% endif %}> Userspace networking</label>
+          </div>
+
+          <div class="actions">
+            <button id="save" type="submit">Save settings</button>
+            <span id="status"></span>
+          </div>
+        </form>
+
+        <section id="preview" class="panel">
+          <h3>Container startup preview</h3>
+          <p class="mini">
+            Saved settings generate <code>data/tailscale.env</code> for docker compose.
+            Auth key currently configured: <strong id="auth_state">{{ "yes" if settings.auth_key_configured else "no" }}</strong>.
+          </p>
+          <pre id="preview_args">{{ settings.ts_extra_args_preview }}</pre>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const form = document.getElementById("config");
+      const statusEl = document.getElementById("status");
+      const previewEl = document.getElementById("preview_args");
+      const authStateEl = document.getElementById("auth_state");
+
+      function collect() {
+        return {
+          auth_key: document.getElementById("auth_key").value.trim(),
+          hostname: document.getElementById("hostname").value.trim(),
+          advertise_routes: document.getElementById("advertise_routes").value.trim(),
+          extra_args: document.getElementById("extra_args").value.trim(),
+          advertise_exit_node: document.getElementById("advertise_exit_node").checked,
+          accept_routes: document.getElementById("accept_routes").checked,
+          accept_dns: document.getElementById("accept_dns").checked,
+          enable_ssh: document.getElementById("enable_ssh").checked,
+          userspace: document.getElementById("userspace").checked,
+        };
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        statusEl.textContent = "Saving...";
+        try {
+          const res = await fetch("/api/tailscale/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ settings: collect() }),
+          });
+          const body = await res.json();
+          if (!res.ok) {
+            throw new Error(body.error || ("HTTP " + res.status));
+          }
+          previewEl.textContent = body.settings.ts_extra_args_preview || "(none)";
+          authStateEl.textContent = body.settings.auth_key_configured ? "yes" : "no";
+          document.getElementById("auth_key").value = "";
+          statusEl.textContent = "Saved. Run autolab restart to apply.";
+        } catch (err) {
+          statusEl.textContent = "Save failed: " + err.message;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

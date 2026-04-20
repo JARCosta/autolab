@@ -1,17 +1,19 @@
 """Wallapop search tracker -- polls Wallapop API and sends new listings via Telegram."""
 import datetime
 import json
-import os
 import time
 import traceback
 
 import requests
 
-import paths
 from app.backend.notifications import send_message
-
-_SEARCH_TERMS_FILE = paths.WALLAPOP_SEARCH_TERMS_FILE
-_DATA_FILE = paths.WALLAPOP_DATA_FILE
+from app.infrastructure.storage.wallapop_store import (
+    read_data_lines,
+    read_search_term_lines,
+    save_data_backup,
+    write_data_lines,
+    write_search_term_lines,
+)
 _AFTER_URL = "https://api.wallapop.com/api/v3/search?next_page="
 
 
@@ -65,29 +67,26 @@ class SearchTerms:
 
     def __init__(self):
         self.terms = {}
-        os.makedirs(paths.WALLAPOP_DIR, exist_ok=True)
-        if not os.path.exists(_SEARCH_TERMS_FILE):
-            open(_SEARCH_TERMS_FILE, "w").close()
-        with open(_SEARCH_TERMS_FILE, "r", encoding="utf-8") as file:
-            for line in file.readlines():
-                parts = line.strip().split(";")
-                if len(parts) < 5:
-                    continue
-                term = {
-                    "search_str": parts[1],
-                    "category": int(parts[2]) if parts[2] != "" else None,
-                    "min_price": int(parts[3]) if parts[3] != "" else None,
-                    "max_price": int(parts[4]) if parts[4] != "" else None,
-                }
-                self.terms[int(parts[0])] = term
+        for line in read_search_term_lines():
+            parts = line.strip().split(";")
+            if len(parts) < 5:
+                continue
+            term = {
+                "search_str": parts[1],
+                "category": int(parts[2]) if parts[2] != "" else None,
+                "min_price": int(parts[3]) if parts[3] != "" else None,
+                "max_price": int(parts[4]) if parts[4] != "" else None,
+            }
+            self.terms[int(parts[0])] = term
 
     def update_file(self):
-        with open(_SEARCH_TERMS_FILE, "w", encoding="utf-8") as file:
-            for term_id, term in self.terms.items():
-                cat = term["category"] if term["category"] is not None else ""
-                minp = term["min_price"] if term["min_price"] is not None else ""
-                maxp = term["max_price"] if term["max_price"] is not None else ""
-                file.write(f"{term_id};{term['search_str']};{cat};{minp};{maxp}\n")
+        lines: list[str] = []
+        for term_id, term in self.terms.items():
+            cat = term["category"] if term["category"] is not None else ""
+            minp = term["min_price"] if term["min_price"] is not None else ""
+            maxp = term["max_price"] if term["max_price"] is not None else ""
+            lines.append(f"{term_id};{term['search_str']};{cat};{minp};{maxp}\n")
+        write_search_term_lines(lines)
 
     def add_search_term(self, search_str: str, category: int = None, min_price: int = None, max_price: int = None):
         term_id = 0
@@ -112,21 +111,14 @@ class SearchTerms:
 
 
 def term_func(search_str: str, category: int = None, min_price: int = None, max_price: int = None):
-    os.makedirs(paths.WALLAPOP_DIR, exist_ok=True)
     while True:
         try:
-            if not os.path.exists(_DATA_FILE):
-                open(_DATA_FILE, "w").close()
-            with open(_DATA_FILE, "r", encoding="utf-8") as file:
-                old_data = file.readlines()
-                old_ids = []
-                for line in old_data:
-                    if ";" in line:
-                        old_ids.append(line.split(";")[6])
-
-            old_file = os.path.join(paths.WALLAPOP_DIR, "data.old.csv")
-            with open(old_file, "w", encoding="utf-8") as file:
-                file.writelines(old_data)
+            old_data = read_data_lines()
+            old_ids = []
+            for line in old_data:
+                if ";" in line:
+                    old_ids.append(line.split(";")[6])
+            save_data_backup(old_data)
 
             new_data = search(search_str, category=category, min_price=min_price, max_price=max_price)
             new_listings = [item for item in new_data if item[6] not in old_ids]
@@ -138,11 +130,10 @@ def term_func(search_str: str, category: int = None, min_price: int = None, max_
                     telegram_message += i[8] + " " + i[1] + "\n" + i[5] + "\n\n"
                 send_message(telegram_message, notification=True, log=False)
 
-            with open(_DATA_FILE, "w", encoding="utf-8") as file:
-                for i in new_data:
-                    for j in i:
-                        file.write(str(j) + ";")
-                    file.write("\n")
+            out_lines: list[str] = []
+            for i in new_data:
+                out_lines.append("".join(str(j) + ";" for j in i) + "\n")
+            write_data_lines(out_lines)
 
         except Exception as e:
             print(f"[Wallapop Tracker] Error: {e}")

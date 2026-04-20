@@ -4,7 +4,7 @@ import time
 
 import requests
 
-import paths
+from app.infrastructure.storage.telegram_log import append_log, clear_log, read_log
 from logging_config import setup_logging
 
 _log = setup_logging("notifications.telegram")
@@ -17,7 +17,6 @@ class TelegramChannel:
         self._notification_token = os.getenv("TELEGRAM_NOTIFICATION_TOKEN")
         self._logs_token = os.getenv("TELEGRAM_LOGS_TOKEN")
         self._user_id = os.getenv("TELEGRAM_USER_ID")
-        self._log_file = paths.TELEGRAM_LOG_FILE
 
     def _do_send_message(self, token: str, params: dict):
         while True:
@@ -90,21 +89,14 @@ class TelegramChannel:
         return r.json()["result"] if r else None
 
     def add_log(self, message: str) -> None:
-        os.makedirs(os.path.dirname(self._log_file), exist_ok=True)
-        with open(self._log_file, "a", encoding="utf-8") as f:
-            f.write(message)
+        append_log(message)
         _log.info("%s", message.rstrip())
 
     def get_log(self) -> str:
-        try:
-            with open(self._log_file, "r", encoding="utf-8") as f:
-                return f.read()
-        except FileNotFoundError:
-            return ""
+        return read_log()
 
     def clear_log(self) -> None:
-        os.makedirs(os.path.dirname(self._log_file), exist_ok=True)
-        open(self._log_file, "w").close()
+        clear_log()
 
     def send_log(self) -> None:
         msg = self.get_log()

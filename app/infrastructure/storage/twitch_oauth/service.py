@@ -1,22 +1,22 @@
-"""Twitch OAuth device flow and token storage (``data/oauth.json``).
+"""Twitch OAuth device-flow service using storage-backed token persistence."""
 
-Used at startup so IRC/WebSocket clients can authenticate; not StreamElements-specific.
-"""
-import json
-import os
+from __future__ import annotations
+
 import time
 
 import requests
 
-import paths
 from app.infrastructure.http import twitch as twitch_http
+from app.infrastructure.storage.twitch_oauth.repository import (
+    load_oauth_tokens,
+    save_oauth_tokens,
+)
 from logging_config import setup_logging
 
 log = setup_logging("twitch.oauth")
-OAUTH_FILE = paths.OAUTH_FILE
 
 
-def set_oauth_token(oauth: dict, username: str):
+def set_oauth_token(oauth: dict[str, str], username: str) -> str:
     response = twitch_http.device_flow_start()
     log.info("%s's Oauth_key: %s", username, response.json()["verification_uri"])
     device_code = response.json()["device_code"]
@@ -30,29 +30,22 @@ def set_oauth_token(oauth: dict, username: str):
         log.debug("%s %s", new_response.status_code, new_response.json())
         if new_response.status_code == 200:
             oauth[username] = new_response.json()["access_token"]
-            os.makedirs(os.path.dirname(OAUTH_FILE), exist_ok=True)
-            with open(OAUTH_FILE, "w", encoding="utf-8") as f:
-                json.dump(oauth, f)
+            save_oauth_tokens(oauth)
             return new_response.json()["access_token"]
         time.sleep(5)
 
 
-def check_oauth_token(username):
-
-    if not os.path.exists(OAUTH_FILE):
-        oauth = {}
+def check_oauth_token(username: str) -> str:
+    oauth = load_oauth_tokens()
+    if username not in oauth:
         log.info("Set %s's oauth token", username)
         return set_oauth_token(oauth, username)
 
-    with open(OAUTH_FILE, "r", encoding="utf-8") as f:
-        oauth = json.load(f)
-        if username not in oauth:
-            return set_oauth_token(oauth, username)
+    response = twitch_http.validate_token(oauth[username])
+    if response.status_code == 200:
+        log.info("%s's oauth token is valid", username)
+        return oauth[username]
 
-        response = twitch_http.validate_token(oauth[username])
-        if response.status_code == 200:
-            log.info("%s's oauth token is valid", username)
-            return oauth[username]
-        else:
-            log.info("%s's oauth token is invalid", username)
-            return set_oauth_token(oauth, username)
+    log.info("%s's oauth token is invalid", username)
+    return set_oauth_token(oauth, username)
+

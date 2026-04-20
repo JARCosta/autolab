@@ -14,6 +14,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONPATH="$(pwd)"
 
+# Tailscale compose service reads data/tailscale.env; bootstrap defaults if missing.
+if [[ ! -f data/tailscale.env ]]; then
+  python3 -c "from app.infrastructure.storage.tailscale_state import default_settings, save_settings; save_settings(default_settings())"
+fi
+
 # Single source of truth with app/runtime/modules.py (same as the webapp toggles).
 readarray -t PROFILES < <(python3 -c "from app.runtime.modules import container_profiles; print('\\n'.join(container_profiles()))")
 

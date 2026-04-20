@@ -116,6 +116,7 @@ h1 {
 .card-icon.blue { background: rgba(66, 165, 245, 0.15); color: #42a5f5; }
 .card-icon.orange { background: rgba(255, 152, 0, 0.15); color: #ff9800; }
 .card-icon.purple { background: rgba(171, 71, 188, 0.15); color: #ab47bc; }
+.card-icon.teal { background: rgba(38, 166, 154, 0.15); color: #26a69a; }
 .card-title {
   font-size: 0.95rem;
   font-weight: 600;

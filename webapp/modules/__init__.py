@@ -1,1 +1,1 @@
-"""Feature blueprints: StreamElements, hardware monitor, CS2 boost UI."""
+"""Feature blueprints: StreamElements, hardware monitor, Discord dashboard, Wallapop, Tailscale."""

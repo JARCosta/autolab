@@ -9,6 +9,9 @@ where ``<service>`` is one of: ``web``, ``bettors``, ``discord``, ``wallapop``,
 or ``all`` (legacy single-process mode for local development; equivalent to the
 old ``python main.py``).
 
+The **tailscale** module is a separate Docker image/service (``autolab-tailscale`` in
+``docker-compose.yml``), not this Python entrypoint.
+
 Containerised services (``bettors``/``discord``/``wallapop``) read
 ``data/modules.json`` first; if their module is disabled, they exit cleanly
 with code 0 so docker compose (with ``restart: on-failure``) leaves them
@@ -45,7 +48,7 @@ def _run_bettors(kill_event: threading.Event) -> list[threading.Thread]:
     from app.infrastructure.storage.balances_db.channels_data import (
         active_channels_nested,
     )
-    from app.infrastructure.twitch.oauth import check_oauth_token
+    from app.infrastructure.storage.twitch_oauth import check_oauth_token
 
     channels = active_channels_nested()
     viewers = list({
