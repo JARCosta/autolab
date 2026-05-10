@@ -2,8 +2,8 @@
 Notification channel for AutoLab: the user-facing side (frontend).
 
 Domain services (stream_elements betting, wallapop_tracker, webapp commands) send
-messages through this API. The channel is set at startup (main.py) to the Telegram
-implementation — your frontend — so domain code does not depend on webapp.
+messages through this API. The channel is set at runtime startup to the Telegram
+implementation so domain code does not depend on the web layer.
 """
 import threading
 from typing import Any, Optional

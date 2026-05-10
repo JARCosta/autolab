@@ -1,25 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Discord bot · AutoLab</title>
-  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
+{% extends "module_layout.html" %}
+{% block module_title %}Discord bot{% endblock %}
+{% block module_heading %}Discord{% endblock %}
+{% block head_extra %}
   <link rel="stylesheet" href="{{ url_for('discord_bot.static', filename='discord_dashboard.css', v=asset_version) }}">
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <h2>Discord</h2>
-      <p class="sidebar-lead">Standardized module sidebar. Queue and Elo actions happen in Discord slash commands.</p>
-      <a class="side-link" href="#commands">Slash commands</a>
-      <a class="side-link" href="#leaderboard">Leaderboard</a>
-    </aside>
-
-    <div class="main">
-      <nav><a href="/">&larr; AutoLab</a></nav>
-
-      <div class="container">
+{% endblock %}
+{% block sidebar_lead %}
+  <p class="sidebar-lead">Standardized module sidebar. Queue and Elo actions happen in Discord slash commands.</p>
+{% endblock %}
+{% block sidebar_nav %}
+  <a class="side-link" href="#commands">Slash commands</a>
+  <a class="side-link" href="#leaderboard">Leaderboard</a>
+{% endblock %}
+{% block content %}
         <h1>Discord bot</h1>
         <p class="subtitle">
           CS2-style queue and Elo live in Discord. This page mirrors the shared
@@ -68,10 +60,7 @@
           <div id="lb-status" class="lb-status" aria-live="polite">Loading…</div>
           <div id="lb-table-wrap" class="lb-table-wrap is-hidden"></div>
         </section>
-      </div>
-    </div>
-  </div>
-
+{% endblock %}
+{% block body_scripts %}
   <script src="{{ url_for('discord_bot.static', filename='discord_dashboard.js', v=asset_version) }}"></script>
-</body>
-</html>
+{% endblock %}

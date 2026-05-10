@@ -126,7 +126,7 @@ def get_latest_metric(device: str) -> dict | None:
         return dict(row) if row else None
 
 
-def get_rows_since(device: str, since_iso: str, cap: int) -> list[dict]:
+def get_rows_since(device: str, since_iso: str) -> list[dict]:
     fields = ", ".join(HW_SELECT_FIELDS)
     with sqlite3.connect(paths.HARDWARE_DB) as conn:
         conn.row_factory = sqlite3.Row
@@ -137,9 +137,8 @@ def get_rows_since(device: str, since_iso: str, cap: int) -> list[dict]:
             WHERE device = ?
               AND julianday(replace(timestamp, 'Z', '+00:00')) > julianday(replace(?, 'Z', '+00:00'))
             ORDER BY timestamp ASC
-            LIMIT ?
             """,
-            (device, since_iso, cap),
+            (device, since_iso),
         )
         return [dict(r) for r in cur.fetchall()]
 
@@ -156,6 +155,24 @@ def get_rows_since_cutoff(device: str, cutoff_iso: str) -> list[dict]:
             ORDER BY timestamp ASC
             """,
             (device, cutoff_iso),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_rows_between(device: str, start_iso: str, end_iso: str) -> list[dict]:
+    fields = ", ".join(HW_SELECT_FIELDS)
+    with sqlite3.connect(paths.HARDWARE_DB) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            f"""
+            SELECT {fields}
+            FROM hardware_metrics
+            WHERE device = ?
+              AND timestamp >= ?
+              AND timestamp <= ?
+            ORDER BY timestamp ASC
+            """,
+            (device, start_iso, end_iso),
         )
         return [dict(r) for r in cur.fetchall()]
 

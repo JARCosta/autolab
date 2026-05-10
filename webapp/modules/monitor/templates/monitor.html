@@ -1,18 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AutoLab — Hardware Monitor</title>
+{% extends "module_layout.html" %}
+{% block doc_title %}AutoLab — Hardware Monitor{% endblock %}
+{% block head_extra %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
-  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
   <link rel="stylesheet" href="{{ url_for('monitor.static', filename='monitor.css', v=asset_version) }}">
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar">
+{% endblock %}
+{% block sidebar %}
       <h2>Charts</h2>
       <label><input type="checkbox" data-chart="load" checked> CPU + GPU load</label>
       <label><input type="checkbox" data-chart="clock" checked> CPU + GPU clock</label>
@@ -20,10 +14,8 @@
       <label><input type="checkbox" data-chart="ram_swap" checked> RAM + swap</label>
       <label><input type="checkbox" data-chart="gpu_mem" checked> VRAM</label>
       <label><input type="checkbox" data-chart="pcie" checked> PCIe MB/s</label>
-    </aside>
-
-    <div class="main">
-      <nav><a href="/">&larr; AutoLab</a></nav>
+{% endblock %}
+{% block main_content %}
       <h1>Hardware Monitor</h1>
 
       <div class="device-row">
@@ -113,9 +105,7 @@
         Collection: <strong>psutil</strong> for CPU, RAM, swap, and CPU temperature where the OS exposes them.
         GPU load, VRAM, GPU temperature, clocks, and PCIe throughput use <strong>nvidia-smi</strong> when available.
       </p>
-    </div>
-  </div>
-
+{% endblock %}
+{% block body_scripts %}
   <script src="{{ url_for('monitor.static', filename='monitor.js', v=asset_version) }}"></script>
-</body>
-</html>
+{% endblock %}

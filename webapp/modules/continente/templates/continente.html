@@ -1,0 +1,82 @@
+{% extends "module_layout.html" %}
+{% block module_title %}Continente{% endblock %}
+{% block module_heading %}Continente{% endblock %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('continente.static', filename='continente.css', v=asset_version) }}">
+{% endblock %}
+{% block sidebar_lead %}
+  <p class="sidebar-lead">Tracked products, votes, and Telegram alerts when the price is below your baseline and likes outweigh dislikes.</p>
+{% endblock %}
+{% block sidebar_nav %}
+  <a class="side-link" href="#products">Products</a>
+{% endblock %}
+{% block content %}
+    <h1>Continente Tracker</h1>
+    <p class="subtitle">Pulls product snapshots from your authenticated Continente endpoints (<code>CONTINENTE_COOKIE</code>, <code>CONTINENTE_ENDPOINTS</code>). Alerts fire only when current price is below baseline regular price, notifications are on, and likes beat dislikes.</p>
+
+    <p id="page-error" class="page-error is-hidden" role="alert"></p>
+
+    <div class="sync-toolbar">
+      <button type="button" id="sync-btn" class="sync-btn">Sync now</button>
+      <span id="sync-status" aria-live="polite"></span>
+    </div>
+
+    {% if products %}
+    <div id="products" class="table-wrap">
+    <table class="module-table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Current</th>
+          <th>Baseline</th>
+          <th class="col-num">Votes</th>
+          <th>Vote</th>
+          <th>Notify</th>
+          <th class="col-num">Last seen (UTC)</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+      {% for p in products %}
+        {% set cur = p.current_price %}
+        {% set reg = p.regular_price %}
+        {% set deal = cur is not none and reg is not none and cur < reg %}
+        <tr data-id="{{ p.id }}">
+          <td>{{ p.name }}</td>
+          <td class="price-cell col-num {% if deal %}price-ok{% elif cur is not none and reg is not none %}price-warn{% endif %}">
+            {% if cur is not none %}{{ "%.2f"|format(cur) }}{% else %}—{% endif %}
+            {% if p.currency %} {{ p.currency }}{% endif %}
+          </td>
+          <td class="col-num">
+            {% if reg is not none %}{{ "%.2f"|format(reg) }}{% else %}—{% endif %}
+            {% if p.currency %} {{ p.currency }}{% endif %}
+          </td>
+          <td class="col-num">+{{ p.likes }} / -{{ p.dislikes }}</td>
+          <td class="vote">
+            <button type="button" data-delta="1" aria-label="Upvote">▲</button>
+            <button type="button" data-delta="-1" aria-label="Downvote">▼</button>
+          </td>
+          <td class="notify">
+            <button
+              type="button"
+              class="{% if p.notify_enabled %}notify-on{% else %}notify-off{% endif %}"
+              data-enabled="{{ 0 if not p.notify_enabled else 1 }}"
+            >
+              {{ "On" if p.notify_enabled else "Off" }}
+            </button>
+          </td>
+          <td class="col-num muted-seen">{{ p.last_seen_at[:19]|replace('T', ' ') if p.last_seen_at else "—" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div id="products" class="empty-panel">
+      <p><strong>No products in the database yet.</strong></p>
+      <p style="margin-top:0.75rem">Enable the <strong>continente</strong> profile, set env credentials in <code>.env</code>, then use <strong>Sync now</strong> or wait for the background worker.</p>
+    </div>
+    {% endif %}
+{% endblock %}
+{% block body_scripts %}
+  <script src="{{ url_for('continente.static', filename='continente.js', v=asset_version) }}"></script>
+{% endblock %}

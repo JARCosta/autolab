@@ -1,3 +1,8 @@
+/*
+ * Shared module chrome: sidebar + main column + optional container.
+ * Loaded by webapp/templates/module_layout.html for every module page.
+ */
+
 .app-shell {
   display: flex;
   max-width: 1100px;
@@ -35,13 +40,15 @@
 
 .side-link {
   display: block;
-  color: #6ec4b8;
+  color: #b9a6e0;
   text-decoration: none;
   font-size: 0.82rem;
   margin-bottom: 0.45rem;
 }
 
-.side-link:hover { color: #9ee0d6; }
+.side-link:hover {
+  color: #d8c8fa;
+}
 
 .main {
   flex: 1;
@@ -49,21 +56,22 @@
   padding: 1.5rem 1rem 1.5rem 0.5rem;
 }
 
-nav a {
+.module-nav a {
   color: #888;
   text-decoration: none;
   font-size: 0.85rem;
 }
 
-nav a:hover { color: #bbb; }
-
-.container {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 3rem 1.5rem;
+.module-nav a:hover {
+  color: #bbb;
 }
 
-h1 {
+.container,
+.module-container {
+  max-width: 720px;
+}
+
+.module-container h1 {
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -71,9 +79,9 @@ h1 {
 }
 
 .subtitle {
-  color: #9aa0a6;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
+  color: #888;
+  font-size: 0.85rem;
+  margin-bottom: 2rem;
 }
 
 .subtitle code {
@@ -84,75 +92,40 @@ h1 {
   font-size: 0.78rem;
 }
 
-.panel {
-  border: 1px solid #2b2b2b;
-  background: #151515;
-  border-radius: 10px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-label {
-  display: block;
-  font-size: 0.88rem;
-  color: #d4d4d4;
-  margin-bottom: 0.8rem;
-}
-
-input[type="text"],
-input[type="password"] {
+/* Generic data table — use <table class="module-table"> in module templates */
+table.module-table {
   width: 100%;
-  margin-top: 0.35rem;
-  border-radius: 8px;
-  border: 1px solid #333;
-  background: #0f0f0f;
-  color: #ececec;
-  padding: 0.55rem 0.65rem;
-  font-size: 0.88rem;
-}
-
-.checks {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.4rem 0.8rem;
-  margin: 0.8rem 0;
-}
-
-.checks label {
-  margin: 0;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-button {
-  border: 1px solid #3f7d4a;
-  background: #2e6f3a;
-  color: #eefdef;
-  border-radius: 8px;
-  padding: 0.45rem 0.85rem;
-  cursor: pointer;
-}
-
-#status {
+  border-collapse: collapse;
+  margin-top: 1rem;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 0.5rem;
+  overflow: hidden;
   font-size: 0.85rem;
-  color: #a4b1bd;
 }
 
-.mini {
-  color: #9aa0a6;
-  font-size: 0.82rem;
+table.module-table th,
+table.module-table td {
+  text-align: left;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid #232323;
 }
 
-pre {
-  background: #0c0c0c;
-  border: 1px solid #252525;
-  border-radius: 8px;
-  padding: 0.7rem;
-  white-space: pre-wrap;
+table.module-table th {
+  font-weight: 600;
+  color: #aaa;
+  background: #161616;
+}
+
+table.module-table tr:last-child td {
+  border-bottom: none;
+}
+
+.empty-state {
+  color: #666;
+  font-size: 0.9rem;
+  padding: 2rem 0;
+  text-align: center;
 }
 
 @media (max-width: 780px) {

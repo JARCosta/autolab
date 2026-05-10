@@ -1,1 +1,1 @@
-"""Feature blueprints: StreamElements, hardware monitor, Discord dashboard, Wallapop, Tailscale."""
+"""Feature blueprints: StreamElements, monitor, Discord, Wallapop, Continente."""

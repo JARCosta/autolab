@@ -148,9 +148,16 @@ def monitor_history():
 
     minutes = request.args.get("minutes", 60, type=int)
     minutes = min(minutes, 10080)
-    max_points = request.args.get("max_points", 4000, type=int)
-    max_points = min(max(max_points, 100), 20_000)
-    metrics = get_metrics_history(minutes, max_points=max_points, device=device)
+    end_iso = (request.args.get("end") or "").strip() or None
+    simplify_points = request.args.get("simplify_points", type=int)
+    if simplify_points is not None:
+        simplify_points = min(max(simplify_points, 0), 20_000)
+    metrics = get_metrics_history(
+        minutes,
+        end_iso=end_iso,
+        simplify_points=simplify_points,
+        device=device,
+    )
     latest = metrics[-1] if metrics else get_latest_metric(device=device)
     devices = list_device_names()
     return jsonify({"metrics": metrics, "latest": latest, "devices": devices})
@@ -170,9 +177,10 @@ def monitor_history_delta():
     if not since:
         return jsonify({"error": "missing since"}), 400
 
-    max_points = request.args.get("max_points", 5000, type=int)
-    max_points = min(max(max_points, 1), 20_000)
-    metrics = get_metrics_since(since, max_points=max_points, device=device)
+    simplify_points = request.args.get("simplify_points", type=int)
+    if simplify_points is not None:
+        simplify_points = min(max(simplify_points, 0), 10_000)
+    metrics = get_metrics_since(since, simplify_points=simplify_points, device=device)
     latest = metrics[-1] if metrics else get_latest_metric(device=device)
     return jsonify({"metrics": metrics, "latest": latest})
 

@@ -6,8 +6,6 @@ import math
 import os
 import re
 import socket
-import sqlite3
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -24,19 +22,6 @@ _PRUNE_EVERY_N_INSERTS = 600
 _insert_count = 0
 
 _ALLOWED_VENDORS = frozenset({"intel", "amd", "nvidia", "unknown"})
-
-# Older history is compacted by selecting representative points that preserve
-# shape and spikes. Recent data stays at full resolution.
-_ADAPTIVE_RECENT_SECONDS = 60 * 60  # 1 hour
-_ADAPTIVE_EST_POINTS_PER_BUCKET = 10  # first+last+min/max over key metrics
-_ADAPTIVE_SPIKE_KEYS = (
-    "cpu_load",
-    "cpu_temp",
-    "gpu_util",
-    "gpu_temp",
-)
-
-_SERVER_DOWNSAMPLE_MULTIPLIER = 6
 
 # Max samples per POST (monitor ingest); 6 h at 1 Hz.
 HARDWARE_PUSH_BATCH_MAX = 21600
@@ -78,16 +63,19 @@ def _iso_utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _parse_iso_to_epoch_seconds(raw: str | None) -> float | None:
+def _parse_iso_utc(raw: str | None) -> datetime | None:
     if not raw or not isinstance(raw, str):
         return None
+    s = raw.strip()
+    if not s:
+        return None
     try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).timestamp()
+    return dt.astimezone(timezone.utc)
 
 
 def _parse_client_timestamp(raw: str | None) -> str:
@@ -267,134 +255,95 @@ def reassign_device_metrics(source_device: str, target_device: str) -> int:
     return repository.reassign_device_metrics(src, dst)
 
 
-def _thin_with_stride(rows: list[dict], max_points: int) -> list[dict]:
-    """Uniform fallback thinning; keeps the final point."""
-    if len(rows) <= max_points or max_points <= 0:
+_SIMPLIFY_KEYS = (
+    "cpu_load",
+    "cpu_clock",
+    "cpu_temp",
+    "ram_percent",
+    "swap_percent",
+    "gpu_util",
+    "gpu_mem_percent",
+    "gpu_temp",
+    "gpu_clock",
+    "pcie_tx_mbps",
+    "pcie_rx_mbps",
+)
+
+
+def _simplify_rows_minmax(rows: list[dict], target_points: int) -> list[dict]:
+    """Min/max bucket simplification that preserves spikes and endpoints."""
+    if target_points <= 0 or len(rows) <= target_points:
         return rows
-    stride = max(1, math.ceil(len(rows) / max_points))
-    out = [rows[i] for i in range(0, len(rows), stride)]
-    if out and rows[-1]["timestamp"] != out[-1]["timestamp"]:
-        out.append(rows[-1])
-    if len(out) > max_points:
-        out = out[-max_points:]
-    return out
+    if target_points <= 2:
+        return [rows[0], rows[-1]] if len(rows) > 1 else rows
 
+    bucket_count = max(1, (target_points - 2) // 2)
+    interior = rows[1:-1]
+    if not interior:
+        return [rows[0], rows[-1]]
 
-def _bucket_representatives(bucket_rows: list[dict]) -> list[dict]:
-    """Keep first/last plus local min/max on selected spike-sensitive metrics."""
-    if not bucket_rows:
-        return []
-    if len(bucket_rows) <= 2:
-        return bucket_rows
+    bucket_size = max(1, math.ceil(len(interior) / bucket_count))
+    keep_indices: set[int] = {0, len(rows) - 1}
 
-    keep_idx: set[int] = {0, len(bucket_rows) - 1}
-    for key in _ADAPTIVE_SPIKE_KEYS:
-        min_idx: int | None = None
-        max_idx: int | None = None
-        min_val: float | None = None
-        max_val: float | None = None
-        for i, row in enumerate(bucket_rows):
-            v = row.get(key)
-            if v is None:
-                continue
-            try:
-                fv = float(v)
-            except (TypeError, ValueError):
-                continue
-            if min_val is None or fv < min_val:
-                min_val = fv
-                min_idx = i
-            if max_val is None or fv > max_val:
-                max_val = fv
-                max_idx = i
-        if min_idx is not None:
-            keep_idx.add(min_idx)
-        if max_idx is not None:
-            keep_idx.add(max_idx)
-    return [bucket_rows[i] for i in sorted(keep_idx)]
-
-
-def _adaptive_downsample_history(rows: list[dict], *, max_points: int) -> list[dict]:
-    if len(rows) <= max_points or max_points <= 0:
-        return rows
-
-    now_s = datetime.now(timezone.utc).timestamp()
-    recent_cutoff_s = now_s - _ADAPTIVE_RECENT_SECONDS
-
-    recent_rows: list[dict] = []
-    old_rows: list[dict] = []
-    for row in rows:
-        ts_s = _parse_iso_to_epoch_seconds(row.get("timestamp"))
-        if ts_s is None:
-            recent_rows.append(row)
-        elif ts_s >= recent_cutoff_s:
-            recent_rows.append(row)
-        else:
-            old_rows.append(row)
-
-    if len(recent_rows) >= max_points:
-        return _thin_with_stride(recent_rows, max_points)
-    if not old_rows:
-        return recent_rows
-
-    budget_old = max_points - len(recent_rows)
-    if budget_old <= 0:
-        return recent_rows
-
-    first_old_ts = _parse_iso_to_epoch_seconds(old_rows[0].get("timestamp"))
-    if first_old_ts is None:
-        return _thin_with_stride(old_rows + recent_rows, max_points)
-    old_span_seconds = max(1, int(recent_cutoff_s - first_old_ts))
-    target_bucket_count = max(1, budget_old // _ADAPTIVE_EST_POINTS_PER_BUCKET)
-    bucket_seconds = max(1, math.ceil(old_span_seconds / target_bucket_count))
-
-    buckets: dict[int, list[dict]] = defaultdict(list)
-    for row in old_rows:
-        ts_s = _parse_iso_to_epoch_seconds(row.get("timestamp"))
-        if ts_s is None:
+    for start in range(0, len(interior), bucket_size):
+        end = min(start + bucket_size, len(interior))
+        offset = start + 1
+        bucket = interior[start:end]
+        if not bucket:
             continue
-        bucket_id = int(ts_s // bucket_seconds)
-        buckets[bucket_id].append(row)
+        if len(bucket) == 1:
+            keep_indices.add(offset)
+            continue
 
-    compact_old: list[dict] = []
-    for bucket_id in sorted(buckets.keys()):
-        compact_old.extend(_bucket_representatives(buckets[bucket_id]))
+        scored: list[tuple[int, float]] = []
+        for i, row in enumerate(bucket):
+            vals: list[float] = []
+            for key in _SIMPLIFY_KEYS:
+                v = row.get(key)
+                if v is None:
+                    continue
+                try:
+                    vals.append(float(v))
+                except (TypeError, ValueError):
+                    continue
+            if vals:
+                scored.append((offset + i, max(vals) - min(vals)))
+            else:
+                scored.append((offset + i, 0.0))
+        scored.sort(key=lambda item: item[1], reverse=True)
+        keep_indices.add(scored[0][0])
+        if len(scored) > 1:
+            keep_indices.add(scored[1][0])
 
-    compact_old = _thin_with_stride(compact_old, budget_old)
-    merged = compact_old + recent_rows
-    merged.sort(key=lambda r: r.get("timestamp") or "")
-    return _thin_with_stride(merged, max_points)
+    out = [rows[i] for i in sorted(keep_indices)]
+    if len(out) <= target_points:
+        return out
+    stride = max(1, math.ceil(len(out) / target_points))
+    compact = [out[i] for i in range(0, len(out), stride)]
+    if compact[-1] != out[-1]:
+        compact.append(out[-1])
+    return compact[-target_points:]
 
 
 def get_metrics_history(
     minutes: int = 60,
-    max_points: int = 4000,
     *,
+    end_iso: str | None = None,
+    simplify_points: int | None = None,
     device: str | None = None,
 ) -> list[dict]:
     _ensure_db()
     dev = normalize_device_name(device) if device else ""
     if not dev:
         dev = get_local_device_name()
-    cutoff = (
-        (datetime.now(timezone.utc) - timedelta(minutes=minutes))
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
-    # Avoid loading massive 7d rowsets into Python: pre-thin in SQL when row count is far
-    # above the response budget, then run adaptive spike-preserving compaction.
-    total_rows = repository.count_rows_since_cutoff(dev, cutoff)
-    if total_rows > (max_points * _SERVER_DOWNSAMPLE_MULTIPLIER):
-        stride = max(2, math.ceil(total_rows / (max_points * 2)))
-        try:
-            rows = repository.get_rows_since_cutoff_strided(dev, cutoff, stride)
-        except sqlite3.OperationalError:
-            rows = repository.get_rows_since_cutoff(dev, cutoff)
-    else:
-        rows = repository.get_rows_since_cutoff(dev, cutoff)
-    if len(rows) <= max_points or len(rows) <= 1:
+    end_dt = _parse_iso_utc(end_iso) or datetime.now(timezone.utc)
+    cutoff_dt = end_dt - timedelta(minutes=minutes)
+    end_s = end_dt.isoformat().replace("+00:00", "Z")
+    cutoff_s = cutoff_dt.isoformat().replace("+00:00", "Z")
+    rows = repository.get_rows_between(dev, cutoff_s, end_s)
+    if simplify_points is None or simplify_points <= 0:
         return rows
-    return _adaptive_downsample_history(rows, max_points=max_points)
+    return _simplify_rows_minmax(rows, simplify_points)
 
 
 def get_latest_metric(*, device: str | None = None) -> dict | None:
@@ -408,12 +357,14 @@ def get_latest_metric(*, device: str | None = None) -> dict | None:
 def get_metrics_since(
     since_iso: str,
     *,
-    max_points: int = 5000,
+    simplify_points: int | None = None,
     device: str | None = None,
 ) -> list[dict]:
     _ensure_db()
     dev = normalize_device_name(device) if device else ""
     if not dev:
         dev = get_local_device_name()
-    cap = min(max(max_points, 1), 20_000)
-    return repository.get_rows_since(dev, since_iso, cap)
+    rows = repository.get_rows_since(dev, since_iso)
+    if simplify_points is None or simplify_points <= 0:
+        return rows
+    return _simplify_rows_minmax(rows, simplify_points)

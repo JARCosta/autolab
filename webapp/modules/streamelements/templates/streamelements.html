@@ -1,20 +1,17 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>StreamElements - Balances</title>
+{% extends "module_layout.html" %}
+{% block doc_title %}StreamElements · AutoLab{% endblock %}
+{% block head_extra %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1"></script>
-  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
   <link rel="stylesheet" href="{{ url_for('shared.static', filename='notif.css', v=asset_version) }}">
   <link rel="stylesheet" href="{{ url_for('streamelements.static', filename='streamelements.css', v=asset_version) }}">
-</head>
-<body>
+{% endblock %}
+{% block body_prefix %}
   <div class="notif"><div class="notif-inner" id="notif"></div></div>
-
-  <div class="app-shell se-shell">
+{% endblock %}
+{% block shell_extra_class %} se-shell{% endblock %}
+{% block shell_inner %}
     <aside class="sidebar se-sidebar">
       <h2 class="se-sidebar-title">Twitch channels</h2>
       <p class="sidebar-lead">Per-channel viewers (who is on IRC and who bets). Add a channel by name; you will be asked for its StreamElements account id if it is new or you change ids. Restart AutoLab after saving.</p>
@@ -133,10 +130,9 @@
 
       <p class="status" id="status">Loading fresh data&hellip;</p>
     </div>
-  </div>
-
+{% endblock %}
+{% block body_scripts %}
   <script src="{{ url_for('streamelements.static', filename='streamelements.js', v=asset_version) }}"></script>
   <script src="{{ url_for('streamelements.static', filename='channels.js', v=asset_version) }}"></script>
   <script src="{{ url_for('streamelements.static', filename='layout_setup.js', v=asset_version) }}"></script>
-</body>
-</html>
+{% endblock %}

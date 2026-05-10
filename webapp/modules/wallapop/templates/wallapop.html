@@ -1,24 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Wallapop · AutoLab</title>
-  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
+{% extends "module_layout.html" %}
+{% block module_title %}Wallapop{% endblock %}
+{% block module_heading %}Wallapop{% endblock %}
+{% block head_extra %}
   <link rel="stylesheet" href="{{ url_for('wallapop.static', filename='wallapop.css', v=asset_version) }}">
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <h2>Wallapop</h2>
-      <p class="sidebar-lead">Standardized module sidebar. Terms are managed through Telegram commands.</p>
-      <a class="side-link" href="#terms">Search terms</a>
-    </aside>
-
-    <div class="main">
-      <nav><a href="/">&larr; AutoLab</a></nav>
-
-      <div class="container">
+{% endblock %}
+{% block sidebar_lead %}
+  <p class="sidebar-lead">Standardized module sidebar. Terms are managed through Telegram commands.</p>
+{% endblock %}
+{% block sidebar_nav %}
+  <a class="side-link" href="#terms">Search terms</a>
+{% endblock %}
+{% block content %}
         <h1>Wallapop Tracker</h1>
         <p class="subtitle">
           Active search terms (read-only). Add or remove via Telegram:
@@ -26,7 +18,7 @@
         </p>
 
         {% if terms %}
-        <table class="terms" id="terms">
+        <table class="terms module-table" id="terms">
           <thead>
             <tr>
               <th>#</th>
@@ -51,8 +43,4 @@
         {% else %}
         <p class="empty">No search terms configured.</p>
         {% endif %}
-      </div>
-    </div>
-  </div>
-</body>
-</html>
+{% endblock %}

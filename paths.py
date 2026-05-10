@@ -24,9 +24,9 @@ WALLAPOP_DATA_FILE = os.path.join(WALLAPOP_DIR, "data.csv")
 # Hardware monitor (CPU load, clock, temperature time series)
 HARDWARE_DB = os.path.join(DATA_DIR, "hardware.db")
 
-# Tailscale module settings persisted by the web dashboard
-TAILSCALE_SETTINGS_FILE = os.path.join(DATA_DIR, "tailscale_settings.json")
-TAILSCALE_ENV_FILE = os.path.join(DATA_DIR, "tailscale.env")
+# Continente tracker (products, ratings, and price history)
+CONTINENTE_DB = os.path.join(DATA_DIR, "continente.db")
+
 
 # Discord bot + web dashboard: path constants for ``app.infrastructure.storage.discord_db``
 BOOST_DIR = os.path.join(DATA_DIR, "boost")

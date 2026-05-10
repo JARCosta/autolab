@@ -1,11 +1,8 @@
-"""Telegram webhook route handler."""
+"""Telegram update handler used by inbound ingress."""
 import multiprocessing
 import traceback
 
-from flask import request
-
 from app.backend.notifications import send_message
-from webapp.telegram import telegram_bp
 from webapp.telegram.commands import commands
 
 
@@ -19,11 +16,12 @@ def _proc_function(command, arguments):
         )
 
 
-@telegram_bp.route("/webhook", methods=["POST"])
-def webhook():
-    update = request.get_json()
+def process_update(update: dict | None) -> None:
+    """Handle one Telegram update payload."""
+    if not isinstance(update, dict):
+        return
     if "message" in update:
-        text = update["message"]["text"]
+        text = str(update["message"].get("text") or "")
         if text.startswith("/"):
             parts = text[1:].split(" ")
             command, arguments = parts[0], parts[1:]
@@ -31,4 +29,3 @@ def webhook():
                 multiprocessing.Process(
                     target=_proc_function, args=(command, arguments)
                 ).start()
-    return "", 200

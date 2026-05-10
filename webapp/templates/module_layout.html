@@ -1,0 +1,56 @@
+{#-
+  Canonical AutoLab module page shell. Every dashboard module MUST extend this
+  template unless there is an exceptional reason — see webapp/shared/MODULE_PAGE.md
+
+  Required overrides for a typical page:
+    - module_title — fragment used in <title> … · AutoLab
+    - module_heading — sidebar <h2> (often the same word as module_title)
+    - content (main column, inside .container)
+
+  Optional:
+    - sidebar_lead   — wrap copy in <p class="sidebar-lead">…</p>
+    - sidebar_nav    — <a class="side-link" href="#…">…</a> anchors
+    - head_extra     — module stylesheet / scripts (after shared CSS)
+    - body_scripts   — bottom scripts
+
+  Full-layout override (StreamElements-style): replace shell_inner only.
+-#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block doc_title %}{% block module_title %}Module{% endblock %} · AutoLab{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('shared.static', filename='base.css', v=asset_version) }}">
+  <link rel="stylesheet" href="{{ url_for('shared.static', filename='module_shell.css', v=asset_version) }}">
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {% block body_prefix %}{% endblock %}
+
+  <div class="app-shell{% block shell_extra_class %}{% endblock %}">
+    {% block shell_inner %}
+      <aside class="sidebar{% block sidebar_extra_class %}{% endblock %}">
+        {% block sidebar %}
+          <h2>{% block module_heading %}Module{% endblock %}</h2>
+          {% block sidebar_lead %}{% endblock %}
+          {% block sidebar_nav %}{% endblock %}
+        {% endblock %}
+      </aside>
+
+      <div class="main{% block main_extra_class %}{% endblock %}">
+        <nav class="module-nav" aria-label="Back to home">
+          <a href="/">&larr; AutoLab</a>
+        </nav>
+        {% block main_content %}
+        <div class="container module-container">
+          {% block content %}{% endblock %}
+        </div>
+        {% endblock %}
+      </div>
+    {% endblock %}
+  </div>
+
+  {% block body_scripts %}{% endblock %}
+</body>
+</html>

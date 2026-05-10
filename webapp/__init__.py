@@ -1,26 +1,28 @@
 """
-Flask application factory with optional ngrok tunnel management.
+Flask application factory for dashboard/UI routes.
 
 Blueprints:
   - shared: site-wide static (/static/shared/…)
   - home: landing page at /
   - modules.streamelements, modules.monitor, modules.discord_bot,
-    modules.wallapop, modules.tailscale, modules.system: feature UIs + APIs
+    modules.wallapop, modules.system, modules.cloud: feature UIs + APIs
 
 The ``monitor`` blueprint is registered conditionally on
 ``modules.json["monitor"]`` (the rest of the per-module toggles control
 separate docker-compose services and don't gate webapp routes).
 
+**Module dashboard pages** must extend ``webapp/templates/module_layout.html`` and
+follow ``webapp/shared/MODULE_PAGE.md`` (CSS shell, required Jinja blocks).
+
 To add a feature UI:
-  1. Add webapp/modules/<name>/ with a Blueprint
-  2. Register it in create_app() below
+  1. Add ``webapp/modules/<name>/`` with a Blueprint (``template_folder`` + usually ``static_folder``).
+  2. Register it in ``create_app()`` below.
+  3. Implement the page template per ``MODULE_PAGE.md``.
 """
 import logging
 import os
-import shutil
 
 from flask import Flask
-from pyngrok import conf, ngrok
 
 from logging_config import setup_logging
 
@@ -35,22 +37,22 @@ def create_app():
         return {"asset_version": asset_version}
 
     from app.runtime.modules import is_enabled
+    from webapp.modules.cloud import cloud_bp
+    from webapp.modules.continente import continente_bp
     from webapp.home import home_bp
     from webapp.modules.discord_bot import discord_bot_bp
     from webapp.modules.streamelements import streamelements_bp
     from webapp.modules.system import system_bp
-    from webapp.modules.tailscale import tailscale_bp
     from webapp.modules.wallapop import wallapop_bp
     from webapp.shared import shared_bp
-    from webapp.telegram import telegram_bp
 
     app.register_blueprint(shared_bp, url_prefix="/")
     app.register_blueprint(home_bp, url_prefix="/")
+    app.register_blueprint(cloud_bp, url_prefix="/")
     app.register_blueprint(streamelements_bp, url_prefix="/")
-    app.register_blueprint(telegram_bp)
     app.register_blueprint(discord_bot_bp, url_prefix="/")
     app.register_blueprint(wallapop_bp, url_prefix="/")
-    app.register_blueprint(tailscale_bp, url_prefix="/")
+    app.register_blueprint(continente_bp, url_prefix="/")
     app.register_blueprint(system_bp, url_prefix="/")
 
     if is_enabled("monitor"):
@@ -62,108 +64,12 @@ def create_app():
     return app
 
 
-def start_ngrok(port: int):
-    system_bin = shutil.which("ngrok")
-    if system_bin:
-        conf.get_default().ngrok_path = system_bin
-        log.info("Using system ngrok binary at %s (no runtime download)", system_bin)
-
-    auth_token = os.getenv("NGROK_AUTH_TOKEN")
-    if auth_token:
-        ngrok.set_auth_token(auth_token)
-    api_key = os.getenv("NGROK_API_KEY")
-    if api_key:
-        ngrok.set_api_key(api_key)
-
-    internal_domain = os.getenv("NGROK_INTERNAL_DOMAIN", "").strip()
-    if internal_domain:
-        # Cloud Endpoint + traffic policy forward-internal: agent must use the same
-        # hostname as policy config.url (e.g. https://default.internal -> default.internal).
-        tunnel = ngrok.connect(port, "http", domain=internal_domain)
-        public = os.getenv("NGROK_PUBLIC_URL", "").strip().rstrip("/")
-        log.info("ngrok internal endpoint: %s", tunnel.public_url)
-        if public:
-            log.info("ngrok public URL (cloud endpoint): %s", public)
-        else:
-            log.warning(
-                "NGROK_PUBLIC_URL unset; Telegram webhook must use your cloud endpoint "
-                "HTTPS URL, not the internal .internal address."
-            )
-    else:
-        tunnel = ngrok.connect(port, "http")
-        log.info("ngrok tunnel URL: %s", tunnel.public_url)
-    return tunnel
-
-
-def ngrok_webhook_base(tunnel) -> str:
-    """HTTPS origin for webhooks (cloud endpoint URL when using forward-internal)."""
-    public = os.getenv("NGROK_PUBLIC_URL", "").strip().rstrip("/")
-    if public:
-        return public
-    return tunnel.public_url.rstrip("/")
-
-
 def launch():
-    """Entry point called by main.py to start the webapp process."""
-    import json
-
-    import requests
-
-    from webapp.telegram.commands import commands
-
+    """Entry point for the ``web`` runtime service."""
     port = int(os.getenv("WEBAPP_PORT", "5000"))
     host = os.getenv("WEBAPP_HOST", "0.0.0.0").strip() or "0.0.0.0"
-    explicit_webhook = os.getenv("TELEGRAM_WEBHOOK_PUBLIC_URL", "").strip()
-    ngrok_enabled = os.getenv("WEBAPP_ENABLE_NGROK", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
     app = create_app()
-    tunnel = None
-    if explicit_webhook:
-        log.info(
-            "TELEGRAM_WEBHOOK_PUBLIC_URL is set; skipping ngrok (use your own HTTPS ingress)."
-        )
-    elif ngrok_enabled:
-        try:
-            tunnel = start_ngrok(port)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            # Keep LAN API reachable even if ngrok fails.
-            log.warning("ngrok unavailable; continuing without webhook tunnel: %s", e)
-    else:
-        log.info("WEBAPP_ENABLE_NGROK disabled; running without webhook tunnel.")
-
-    notification_token = os.getenv("TELEGRAM_NOTIFICATION_TOKEN")
-    logs_token = os.getenv("TELEGRAM_LOGS_TOKEN")
-
-    command_helper_url = f"https://api.telegram.org/bot{notification_token}/setMyCommands"
-    command_helper = {"commands": json.dumps([commands[cmd]["helper"] for cmd in commands])}
-    requests.post(command_helper_url, data=command_helper, timeout=10)
-
-    command_helper_url = f"https://api.telegram.org/bot{logs_token}/setMyCommands"
-    requests.post(command_helper_url, data={"commands": json.dumps([])}, timeout=10)
-
-    if explicit_webhook:
-        webhook_url = explicit_webhook.rstrip("/")
-    elif tunnel is not None:
-        webhook_url = f"{ngrok_webhook_base(tunnel)}/webhook"
-    else:
-        webhook_url = None
-
-    if webhook_url:
-        log.info("Telegram webhook URL: %s", webhook_url)
-        requests.post(
-            f"https://api.telegram.org/bot{notification_token}/setWebhook",
-            data={"url": webhook_url},
-            timeout=10,
-        )
-    else:
-        log.info(
-            "Skipping Telegram webhook registration "
-            "(set TELEGRAM_WEBHOOK_PUBLIC_URL or fix ngrok / WEBAPP_ENABLE_NGROK)."
-        )
+    log.info("autolab-web serves dashboard/UI only; inbound webhooks run in autolab-inbound.")
 
     # Show per-request access lines by default so monitor traffic is visible.
     # Set WEBAPP_SHOW_ACCESS_LOGS=0/false/no/off to mute them.

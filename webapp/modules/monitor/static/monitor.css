@@ -1,27 +1,9 @@
-.app-shell {
-  display: flex;
-  max-width: 1100px;
-  margin: 0 auto;
-  min-height: 100vh;
-  align-items: flex-start;
-}
+/* Hardware monitor — shell from module_shell.css; tighter sidebar for toggles */
 .sidebar {
   width: 200px;
-  flex-shrink: 0;
-  padding: 1rem 0.75rem 1rem 1rem;
-  border-right: 1px solid #2a2a2a;
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  max-height: 100vh;
-  overflow-y: auto;
 }
 .sidebar h2 {
   font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #666;
-  margin-bottom: 0.65rem;
 }
 .sidebar label {
   display: flex;
@@ -35,18 +17,7 @@
 .sidebar label:hover { color: #e0e0e0; }
 .sidebar input { accent-color: #4caf50; cursor: pointer; }
 
-.main {
-  flex: 1;
-  min-width: 0;
-  padding: 1.5rem 1rem 1.5rem 0.5rem;
-}
-nav a {
-  color: #888;
-  text-decoration: none;
-  font-size: 0.85rem;
-}
-nav a:hover { color: #bbb; }
-h1 {
+.main h1 {
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0.75rem 0 1rem;
@@ -288,14 +259,3 @@ h1 {
   max-width: 42rem;
 }
 
-@media (max-width: 720px) {
-  .app-shell { flex-direction: column; }
-  .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid #2a2a2a;
-    position: relative;
-    max-height: none;
-  }
-  .main { padding: 1rem; }
-}

@@ -1,4 +1,4 @@
-"""Site-wide static assets (base theme, shared components)."""
+"""Site-wide static assets and the canonical module page template."""
 
 from flask import Blueprint
 

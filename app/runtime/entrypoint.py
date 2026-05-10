@@ -6,11 +6,9 @@ Each docker-compose service runs::
     python -m app.runtime.entrypoint <service>
 
 where ``<service>`` is one of: ``web``, ``bettors``, ``discord``, ``wallapop``,
-or ``all`` (legacy single-process mode for local development; equivalent to the
-old ``python main.py``).
+``continente``, or ``inbound``.
 
-The **tailscale** module is a separate Docker image/service (``autolab-tailscale`` in
-``docker-compose.yml``), not this Python entrypoint.
+The **autolab-tailscale** service is a separate Docker image in ``docker-compose.yml``; it is not launched by this Python entrypoint.
 
 Containerised services (``bettors``/``discord``/``wallapop``) read
 ``data/modules.json`` first; if their module is disabled, they exit cleanly
@@ -96,7 +94,7 @@ def _exit_if_disabled(name: str, log) -> None:
 
 def cmd_web(_args) -> int:
     log = _setup_common()
-    from app.runtime.modules import container_profiles, is_enabled, load_state
+    from app.runtime.modules import container_profiles, load_state
 
     st = load_state()
     profiles = container_profiles()
@@ -106,12 +104,6 @@ def cmd_web(_args) -> int:
         st,
         profiles or "(none — only autolab-web will be running)",
     )
-    if is_enabled("bettors"):
-        log.info(
-            "StreamElements bettors run in the autolab-bettors container, not here. "
-            "If docker ps shows no autolab-bettors, the stack was started without "
-            "--profile bettors (use scripts/start.sh or autolab restart)."
-        )
     import webapp
 
     webapp.launch()
@@ -175,51 +167,23 @@ def cmd_wallapop(_args) -> int:
     return 0
 
 
-def cmd_all(_args) -> int:
-    """
-    Legacy single-process mode: run every enabled module in this process.
-    Used for local development; production uses one container per service.
-    """
+def cmd_inbound(_args) -> int:
     log = _setup_common()
-    from app.runtime.modules import is_enabled
+    import webapp.inbound as inbound_web
 
-    kill_event = threading.Event()
-    threads: list[threading.Thread] = []
+    log.info("Starting inbound gateway (Telegram webhook + optional ngrok).")
+    inbound_web.launch()
+    return 0
 
-    if is_enabled("bettors"):
-        threads.extend(_run_bettors(kill_event))
-        log.info("Bettors enabled (%d thread(s)).", len(threads))
 
-    if is_enabled("discord"):
-        from app.backend.boost_bot.main import run_bot
+def cmd_continente(_args) -> int:
+    log = _setup_common()
+    _exit_if_disabled("continente", log)
 
-        threads.append(
-            threading.Thread(target=run_bot, daemon=True, name="discord")
-        )
+    from app.backend.continente_tracker.tracker import run_forever
 
-    if is_enabled("wallapop"):
-        threads.append(_run_wallapop(kill_event))
-
-    # Webapp always runs in `all` mode (it hosts the toggle UI).
-    import webapp
-
-    threads.append(
-        threading.Thread(target=webapp.launch, daemon=True, name="webapp")
-    )
-
-    for t in threads:
-        t.start()
-
-    try:
-        kill_event.wait()
-    except KeyboardInterrupt:
-        log.info("Shutdown signal received; stopping threads...")
-        kill_event.set()
-
-    for t in threads:
-        if not t.daemon:
-            t.join(timeout=10)
-    log.info("All threads stopped.")
+    log.info("Starting Continente tracker polling loop.")
+    run_forever()
     return 0
 
 
@@ -228,7 +192,8 @@ _COMMANDS = {
     "bettors": cmd_bettors,
     "discord": cmd_discord,
     "wallapop": cmd_wallapop,
-    "all": cmd_all,
+    "continente": cmd_continente,
+    "inbound": cmd_inbound,
 }
 
 

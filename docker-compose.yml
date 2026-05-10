@@ -1,4 +1,8 @@
+# Explicit subnet avoids clashes when many stacks (e.g. CasaOS, other compose
+# projects) exhaust Docker’s auto-picked bridge ranges or iptables rules conflict.
 x-autolab-base: &autolab-base
+  networks:
+    - autolab_default
   build: .
   env_file:
     - .env
@@ -11,6 +15,27 @@ x-autolab-base: &autolab-base
   restart: on-failure
 
 services:
+  # ── Tailscale VPN (always on infra; must start before app containers) ───
+  autolab-tailscale:
+    image: tailscale/tailscale:latest
+    container_name: autolab-tailscale
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ./data/tailscale-state:/var/lib/tailscale
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      # Persisted prefs must match each boot (Tailscale CLI requires explicit flags).
+      - TS_AUTH_ONCE=true
+      - TS_HOSTNAME=autolab
+      - 'TS_EXTRA_ARGS=--accept-dns=false --accept-routes --ssh'
+    restart: unless-stopped
+
   # ── Webapp (always on) ───────────────────────────────────────
   # Hosts the home dashboard, the per-module toggle API, and the Telegram
   # webhook. Other services are pulled in via compose --profile <name>.
@@ -21,6 +46,13 @@ services:
     ports:
       - "5000:5000"
     restart: unless-stopped
+    depends_on:
+      - autolab-tailscale
+    environment:
+      - AUTOLAB_UID=${UID:-1000}
+      - AUTOLAB_GID=${GID:-1000}
+      - PYTHONPATH=/app
+      - NEXTCLOUD_PUBLIC_URL=${NEXTCLOUD_PUBLIC_URL:-http://127.0.0.1:8080}
 
   # ── StreamElements / Twitch bettor threads ───────────────────
   autolab-bettors:
@@ -28,6 +60,8 @@ services:
     container_name: autolab-bettors
     command: ["python", "-m", "app.runtime.entrypoint", "bettors"]
     profiles: ["bettors"]
+    depends_on:
+      - autolab-tailscale
 
   # ── Discord boost_bot (CS2 custom queue) ─────────────────────
   autolab-discord:
@@ -35,6 +69,8 @@ services:
     container_name: autolab-discord
     command: ["python", "-m", "app.runtime.entrypoint", "discord"]
     profiles: ["discord"]
+    depends_on:
+      - autolab-tailscale
 
   # ── Wallapop search tracker ──────────────────────────────────
   autolab-wallapop:
@@ -42,20 +78,74 @@ services:
     container_name: autolab-wallapop
     command: ["python", "-m", "app.runtime.entrypoint", "wallapop"]
     profiles: ["wallapop"]
+    depends_on:
+      - autolab-tailscale
 
-  # ── Tailscale (optional VPN / subnet router) ─────────────────
-  # Settings from the web dashboard write data/tailscale.env (see /tailscale).
-  autolab-tailscale:
-    image: tailscale/tailscale:latest
-    container_name: autolab-tailscale
-    profiles: ["tailscale"]
-    network_mode: "host"
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    volumes:
-      - ./data/tailscale-state:/var/lib/tailscale
-    env_file:
-      - data/tailscale.env
+  # ── Continente price tracker ────────────────────────────────
+  autolab-continente:
+    <<: *autolab-base
+    container_name: autolab-continente
+    command: ["python", "-m", "app.runtime.entrypoint", "continente"]
+    profiles: ["continente"]
+    depends_on:
+      - autolab-tailscale
+
+  # ── Nextcloud (Apache + MariaDB) ────────────────────────────
+  autolab-nextcloud-db:
+    image: mariadb:11.4
+    container_name: autolab-nextcloud-db
+    profiles: ["nextcloud"]
+    networks:
+      - autolab_default
     restart: unless-stopped
+    command: >
+      --transaction-isolation=READ-COMMITTED
+      --binlog-format=ROW
+    environment:
+      MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD:-changeme-root}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-changeme-nextcloud}
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+    volumes:
+      - nextcloud_db:/var/lib/mysql
+
+  autolab-nextcloud:
+    image: nextcloud:apache
+    container_name: autolab-nextcloud
+    profiles: ["nextcloud"]
+    networks:
+      - autolab_default
+    restart: unless-stopped
+    ports:
+      - "${NEXTCLOUD_HTTP_PORT:-8080}:80"
+    depends_on:
+      - autolab-nextcloud-db
+      - autolab-tailscale
+    environment:
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-changeme-nextcloud}
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_HOST: autolab-nextcloud-db
+    volumes:
+      - nextcloud_html:/var/www/html
+
+  # ── Inbound gateway (Telegram webhook + optional ngrok) ─────
+  autolab-inbound:
+    <<: *autolab-base
+    container_name: autolab-inbound
+    command: ["python", "-m", "app.runtime.entrypoint", "inbound"]
+    restart: unless-stopped
+    depends_on:
+      - autolab-tailscale
+
+volumes:
+  nextcloud_html:
+  nextcloud_db:
+
+networks:
+  autolab_default:
+    name: autolab_default
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${AUTOLAB_DOCKER_SUBNET:-172.30.0.0/16}

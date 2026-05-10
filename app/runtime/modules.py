@@ -4,13 +4,16 @@ Module registry + on/off state.
 Toggles from the home-page UI are persisted to ``data/modules.json``. The
 ``autolab`` CLI reads this file on ``autolab restart`` and starts only the
 docker-compose services whose profile is enabled. Inside the webapp container,
-the ``monitor`` blueprint is registered conditionally on the same flag.
+the ``monitor`` blueprint is registered conditionally on ``modules.json["monitor"]``.
+The ``/cloud`` route checks ``nextcloud`` the same way (redirect vs disabled page).
 
 Adding a new module:
     1. Append an entry to ``MODULES`` below (name = compose-profile name).
     2. If it has a per-service container, add a service to ``docker-compose.yml``
        with a matching ``profiles: [<name>]`` entry.
     3. If it adds a UI card, render it via ``modules_for_home()``.
+    4. If it adds a dashboard page, follow ``webapp/shared/MODULE_PAGE.md`` (extends
+       ``webapp/templates/module_layout.html``).
 """
 from __future__ import annotations
 
@@ -94,19 +97,32 @@ MODULES: tuple[ModuleSpec, ...] = (
         default_enabled=False,
     ),
     ModuleSpec(
-        name="tailscale",
-        label="Tailscale VPN",
-        description="Remote server/LAN access without port forwarding.",
-        href="/tailscale",
-        icon_color="teal",
+        name="continente",
+        label="Continente Tracker",
+        description="Tracks products you rate and alerts when price is below your baseline.",
+        href="/continente",
+        icon_color="green",
         icon_svg=(
             '<svg width="16" height="16" viewBox="0 0 16 16" fill="none">'
-            '<circle cx="4" cy="4" r="2" fill="currentColor"/>'
-            '<circle cx="8" cy="4" r="2" fill="currentColor"/>'
-            '<circle cx="12" cy="4" r="2" fill="currentColor"/>'
-            '<circle cx="6" cy="8" r="2" fill="currentColor"/>'
-            '<circle cx="10" cy="8" r="2" fill="currentColor"/>'
-            '<circle cx="8" cy="12" r="2" fill="currentColor"/></svg>'
+            '<path d="M3 4.5H13L11.8 9.5H5L3 2.5H1.5" stroke="currentColor" stroke-width="1.2"'
+            ' stroke-linecap="round" stroke-linejoin="round"/>'
+            '<circle cx="6" cy="12.5" r="1" fill="currentColor"/>'
+            '<circle cx="11" cy="12.5" r="1" fill="currentColor"/></svg>'
+        ),
+        default_enabled=False,
+    ),
+    ModuleSpec(
+        name="nextcloud",
+        label="Nextcloud",
+        description="Self-hosted files and sync; toggle starts MariaDB + Nextcloud containers.",
+        href="/cloud",
+        icon_color="blue",
+        icon_svg=(
+            '<svg width="16" height="16" viewBox="0 0 16 16" fill="none">'
+            '<path d="M4 10.5C4 9.12 5.12 8 6.5 8c.58 0 1.12.17 1.58.45C8.65 7.17 9.77 6.5 11 6.5c2.21 0 4 1.79 4 4"'
+            ' stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>'
+            '<path d="M1 10.5C1 8.57 2.57 7 4.5 7c.83 0 1.58.28 2.18.75C7.35 6.65 8.6 6 10 6c2.76 0 5 2.24 5 5"'
+            ' stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".55"/></svg>'
         ),
         default_enabled=False,
     ),

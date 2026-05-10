@@ -4,12 +4,12 @@
   /* ================================================================
    * Configuration
    * ================================================================ */
-  var HISTORY_MAX_POINTS = 4000;
-  var DELTA_MAX_POINTS = 500;
-  var RENDER_MAX_POINTS_RECENT = 2000;
-  var RENDER_MAX_POINTS_LONG = 1000;
   var LINE_GAP_MS = 45 * 60 * 1000;
   var STALE_TAB_MS = 5 * 60 * 1000;
+  var INITIAL_LOAD_MINUTES = 60;
+  var BACKFILL_CHUNK_MINUTES = 1440;
+  var INITIAL_SIMPLIFY_POINTS = 1500;
+  var BACKFILL_SIMPLIFY_POINTS = 2200;
 
   var POLL_ACTIVE_MS = 10000;
   var POLL_IDLE_MS = 30000;
@@ -47,6 +47,7 @@
   var hiddenSince = null;
   var lastDeltaSince = '';
   var lastDeltaSentAt = 0;
+  var historyLoadGeneration = 0;
 
   /* ================================================================
    * DOM refs
@@ -281,21 +282,6 @@
     });
   }
 
-  function thinMetricsForRender(metrics, maxPoints) {
-    if (!metrics || metrics.length <= maxPoints || maxPoints <= 0) return metrics || [];
-    var stride = Math.ceil(metrics.length / maxPoints);
-    var out = [];
-    for (var i = 0; i < metrics.length; i += stride) out.push(metrics[i]);
-    var last = metrics[metrics.length - 1];
-    if (out.length && last && out[out.length - 1] !== last) out.push(last);
-    if (out.length > maxPoints) out = out.slice(out.length - maxPoints);
-    return out;
-  }
-
-  function renderPointBudget(minutes) {
-    return minutes >= 1440 ? RENDER_MAX_POINTS_LONG : RENDER_MAX_POINTS_RECENT;
-  }
-
   function panelVisible(key) {
     var panel = document.querySelector('[data-chart-panel="' + key + '"]');
     return !!(panel && panel.style.display !== 'none');
@@ -371,8 +357,7 @@
     renderQueued = false;
     if (!cachedMetrics) return;
 
-    var windowed = filterMetricsForWindow(cachedMetrics, currentMinutes);
-    var m = thinMetricsForRender(windowed, renderPointBudget(currentMinutes));
+    var m = filterMetricsForWindow(cachedMetrics, currentMinutes);
 
     applyVendorColors(cachedLatest);
     var toUpdate = [];
@@ -550,28 +535,92 @@
       var t = new Date(m.timestamp).getTime();
       return !isNaN(t) && t >= cutoff;
     });
+    cachedMetrics.sort(function (a, b) {
+      var ta = new Date(a.timestamp).getTime();
+      var tb = new Date(b.timestamp).getTime();
+      return ta - tb;
+    });
+    var deduped = [];
+    var seen = {};
+    for (var j = 0; j < cachedMetrics.length; j++) {
+      var row = cachedMetrics[j];
+      var key = row && row.timestamp ? row.timestamp : ('idx:' + j);
+      if (seen[key]) continue;
+      seen[key] = true;
+      deduped.push(row);
+    }
+    cachedMetrics = deduped;
   }
 
   /* ================================================================
    * API: fetchHistory, fetchDelta, wakeNode
    * ================================================================ */
+  function fetchHistoryChunk(opts) {
+    opts = opts || {};
+    var dev = elDevice.value || currentDevice || '';
+    var minutes = opts.minutes || INITIAL_LOAD_MINUTES;
+    var simplifyPoints = opts.simplifyPoints || 0;
+    var url = '/api/monitor/history?minutes=' + encodeURIComponent(minutes);
+    if (opts.endIso) url += '&end=' + encodeURIComponent(opts.endIso);
+    if (simplifyPoints > 0) url += '&simplify_points=' + encodeURIComponent(simplifyPoints);
+    if (dev) url += '&device=' + encodeURIComponent(dev);
+    return fetch(url).then(function (r) { return r.json(); });
+  }
+
   function fetchHistory() {
     if (historyInFlight) return Promise.resolve();
     historyInFlight = true;
-    var dev = elDevice.value || currentDevice || '';
-    var url = '/api/monitor/history?minutes=' + HISTORY_FETCH_MINUTES
-            + '&max_points=' + HISTORY_MAX_POINTS;
-    if (dev) url += '&device=' + encodeURIComponent(dev);
-    return fetch(url)
-      .then(function (r) { return r.json(); })
+    historyLoadGeneration++;
+    var gen = historyLoadGeneration;
+
+    return fetchHistoryChunk({
+      minutes: INITIAL_LOAD_MINUTES,
+      simplifyPoints: INITIAL_SIMPLIFY_POINTS
+    })
       .then(function (data) {
+        if (gen !== historyLoadGeneration) return;
         if (data.devices) mergeDeviceOptions(data.devices);
         cachedMetrics = data.metrics || [];
         cachedLatest = data.latest;
         scheduleRender();
-        updateStatus(cachedMetrics.length + ' points loaded');
+        setChartsLoading(false);
+        updateStatus(cachedMetrics.length + ' points loaded (initial)');
+        return data;
       })
-      .catch(function () { updateStatus('Failed to load data', true); })
+      .then(function () {
+        if (gen !== historyLoadGeneration) return;
+        var loadedMinutes = INITIAL_LOAD_MINUTES;
+        var endCursor = cachedMetrics && cachedMetrics.length
+          ? cachedMetrics[0].timestamp
+          : new Date().toISOString();
+
+        function loadOlderChunk() {
+          if (gen !== historyLoadGeneration) return Promise.resolve();
+          if (loadedMinutes >= HISTORY_FETCH_MINUTES) return Promise.resolve();
+          var chunkMinutes = Math.min(BACKFILL_CHUNK_MINUTES, HISTORY_FETCH_MINUTES - loadedMinutes);
+          return fetchHistoryChunk({
+            minutes: chunkMinutes,
+            endIso: endCursor,
+            simplifyPoints: BACKFILL_SIMPLIFY_POINTS
+          }).then(function (chunkData) {
+            if (gen !== historyLoadGeneration) return;
+            var rows = (chunkData && chunkData.metrics) ? chunkData.metrics : [];
+            if (rows.length) {
+              appendMetricsToCache(rows);
+              endCursor = rows[0].timestamp || endCursor;
+              scheduleRender();
+            }
+            loadedMinutes += chunkMinutes;
+            updateStatus('Loaded ' + loadedMinutes + 'm of history');
+            return loadOlderChunk();
+          });
+        }
+        return loadOlderChunk();
+      })
+      .catch(function () {
+        setChartsLoading(false);
+        updateStatus('Failed to load data', true);
+      })
       .finally(function () { historyInFlight = false; });
   }
 
@@ -587,8 +636,7 @@
     deltaInFlight = true;
     lastDeltaSince = since;
     lastDeltaSentAt = nowMs;
-    var url = '/api/monitor/history_delta?since=' + encodeURIComponent(since)
-            + '&max_points=' + DELTA_MAX_POINTS;
+    var url = '/api/monitor/history_delta?since=' + encodeURIComponent(since);
     if (dev) url += '&device=' + encodeURIComponent(dev);
     return fetch(url)
       .then(function (r) { return r.json(); })
@@ -701,7 +749,6 @@
         setChartsLoading(true);
         emptyPollCount = 0;
         fetchHistory().finally(function () {
-          setChartsLoading(false);
           wakeNode({ quiet: true });
           scheduleNextPoll();
         });
@@ -800,7 +847,6 @@
     stopPolling();
     setChartsLoading(true);
     fetchHistory().finally(function () {
-      setChartsLoading(false);
       wakeNode({ quiet: true });
       scheduleNextPoll();
     });
@@ -833,7 +879,6 @@
   setChartsLoading(true);
   updateStatus('Loading\u2026');
   fetchHistory().finally(function () {
-    setChartsLoading(false);
     wakeNode({ quiet: true });
     scheduleNextPoll();
   });

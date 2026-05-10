@@ -1,0 +1,142 @@
+/* Continente module — layout from module_shell.css */
+
+.sync-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.sync-btn {
+  background: #1f2a1f;
+  border: 1px solid #335c3a;
+  color: #b8e3bf;
+  padding: 0.45rem 1rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sync-btn:hover:not(:disabled) {
+  background: #243526;
+  border-color: #4b8a56;
+}
+
+.sync-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+#sync-status {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.page-error {
+  font-size: 0.85rem;
+  color: #e57373;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(229, 115, 115, 0.08);
+  border: 1px solid rgba(229, 115, 115, 0.25);
+  border-radius: 0.35rem;
+}
+
+.page-error.is-hidden {
+  display: none;
+}
+
+.price-cell.price-ok {
+  color: #66bb6a;
+  font-weight: 600;
+}
+
+.price-cell.price-warn {
+  color: #b0bec5;
+}
+
+.col-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.muted-seen {
+  font-size: 0.8rem;
+  color: #777;
+}
+
+.vote button {
+  min-width: 2rem;
+  height: 1.75rem;
+  padding: 0 0.35rem;
+  border-radius: 0.3rem;
+  border: 1px solid #3a3a3a;
+  background: #141414;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-right: 4px;
+}
+
+.vote button:hover:not(:disabled) {
+  background: #1e1e1e;
+  border-color: #555;
+  color: #ddd;
+}
+
+.vote button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.notify button {
+  min-width: 3.25rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.3rem;
+  border: 1px solid #3a4a3a;
+  font-size: 0.78rem;
+  cursor: pointer;
+  margin-right: 6px;
+}
+
+.notify button.notify-on {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: #4caf50;
+  color: #a5d6a7;
+}
+
+.notify button.notify-off {
+  background: #141414;
+  border-color: #333;
+  color: #888;
+}
+
+.notify button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.notify button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.empty-panel {
+  color: #888;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 2rem 1rem;
+  text-align: center;
+  border: 1px dashed #2a2a2a;
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.empty-panel code {
+  font-size: 0.78rem;
+  background: #1a1a1a;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  border: 1px solid #2a2a2a;
+}
