@@ -376,6 +376,7 @@ def monitor_push():
     store_metrics(
         _f("cpu_load"),
         _f("cpu_clock"),
+        data.get("cpu_clock_cores"),
         _f("cpu_temp"),
         device=dev,
         ram_percent=_f("ram_percent"),

@@ -1,5 +1,6 @@
 (function () {
   'use strict';
+  var autolab = window.autolab || {};
 
   /* ================================================================
    * Configuration
@@ -19,7 +20,7 @@
    * State
    * ================================================================ */
   var currentMinutes = (function () {
-    var btn = document.querySelector('.range-btn.active[data-minutes]');
+    var btn = autolab.qs('.range-btn.active[data-minutes]');
     var m = btn ? parseInt(btn.getAttribute('data-minutes'), 10) : 10080;
     return (isNaN(m) || m <= 0) ? 10080 : m;
   })();
@@ -29,7 +30,7 @@
 
   var HISTORY_FETCH_MINUTES = (function () {
     var max = 0;
-    document.querySelectorAll('.range-btn[data-minutes]').forEach(function (b) {
+    autolab.qsa('.range-btn[data-minutes]').forEach(function (b) {
       var n = parseInt(b.getAttribute('data-minutes'), 10);
       if (!isNaN(n) && n > max) max = n;
     });
@@ -52,15 +53,15 @@
   /* ================================================================
    * DOM refs
    * ================================================================ */
-  var elStatus = document.getElementById('status');
-  var elDevice = document.getElementById('device-select');
-  var elFetchNowBtn = document.getElementById('fetch-now-btn');
-  var elMergeToggle = document.getElementById('device-merge-toggle');
-  var elMergePopover = document.getElementById('device-merge-popover');
-  var elMergeTarget = document.getElementById('device-merge-target');
-  var elMergeBtn = document.getElementById('device-merge-btn');
-  var elMergeCancel = document.getElementById('device-merge-cancel');
-  var elDeviceNameList = document.getElementById('device-name-list');
+  var elStatus = autolab.id('status');
+  var elDevice = autolab.id('device-select');
+  var elFetchNowBtn = autolab.id('fetch-now-btn');
+  var elMergeToggle = autolab.id('device-merge-toggle');
+  var elMergePopover = autolab.id('device-merge-popover');
+  var elMergeTarget = autolab.id('device-merge-target');
+  var elMergeBtn = autolab.id('device-merge-btn');
+  var elMergeCancel = autolab.id('device-merge-cancel');
+  var elDeviceNameList = autolab.id('device-name-list');
 
   /* ================================================================
    * Chart setup
@@ -159,7 +160,7 @@
   }
 
   function makeDualChart(id, c1, c2, lab1, lab2, fmt) {
-    return new Chart(document.getElementById(id), {
+    return new Chart(autolab.id(id), {
       type: 'line',
       data: { datasets: [dsLine(lab1, c1), dsLine(lab2, c2)] },
       options: chartOptsDual(fmt)
@@ -167,7 +168,7 @@
   }
 
   function makeChart(id, color, unit) {
-    return new Chart(document.getElementById(id), {
+    return new Chart(autolab.id(id), {
       type: 'line',
       data: { datasets: [dsLine('', color)] },
       options: chartOptsSingle(unit)
@@ -175,7 +176,7 @@
   }
 
   function makePcieChart(id) {
-    return new Chart(document.getElementById(id), {
+    return new Chart(autolab.id(id), {
       type: 'line',
       data: { datasets: [dsLine('TX (host\u2192GPU)', '#43a047'), dsLine('RX (GPU\u2192host)', '#e53935')] },
       options: {
@@ -230,25 +231,25 @@
 
   function applyChartVisibility() {
     var t = loadToggles();
-    document.querySelectorAll('[data-chart-panel]').forEach(function (panel) {
+    autolab.qsa('[data-chart-panel]').forEach(function (panel) {
       var key = panel.getAttribute('data-chart-panel');
       var on = t && Object.prototype.hasOwnProperty.call(t, key) ? t[key] : true;
       panel.style.display = on ? '' : 'none';
     });
-    document.querySelectorAll('.sidebar input[data-chart]').forEach(function (inp) {
+    autolab.qsa('.sidebar input[data-chart]').forEach(function (inp) {
       var key = inp.getAttribute('data-chart');
       if (t && Object.prototype.hasOwnProperty.call(t, key)) inp.checked = t[key];
     });
   }
 
-  document.querySelectorAll('.sidebar input[data-chart]').forEach(function (inp) {
-    inp.addEventListener('change', function () {
-      var o = loadToggles() || {};
-      o[inp.getAttribute('data-chart')] = inp.checked;
-      saveToggles(o);
-      applyChartVisibility();
+  autolab.qsa('.sidebar input[data-chart]').forEach(function (inp) {
+    autolab.on(inp, 'change', function () {
+        var o = loadToggles() || {};
+        o[inp.getAttribute('data-chart')] = inp.checked;
+        saveToggles(o);
+        applyChartVisibility();
+      });
     });
-  });
   applyChartVisibility();
 
   /* ================================================================
@@ -283,7 +284,7 @@
   }
 
   function panelVisible(key) {
-    var panel = document.querySelector('[data-chart-panel="' + key + '"]');
+    var panel = autolab.qs('[data-chart-panel="' + key + '"]');
     return !!(panel && panel.style.display !== 'none');
   }
 
@@ -326,7 +327,7 @@
     paint(chartGmem, 0, ok('gpu_mem_percent') ? gc : absent);
 
     function setElColor(id, color) {
-      var el = document.getElementById(id);
+      var el = autolab.id(id);
       if (el) el.style.color = color;
     }
     setElColor('cur-load-cpu', ok('cpu_load') ? cc : absent);
@@ -401,11 +402,11 @@
    * Latest readings display
    * ================================================================ */
   function renderLatest(latest) {
-    var elGpuBanner = document.getElementById('gpu-status');
+    var elGpuBanner = autolab.id('gpu-status');
     if (latest) {
       function setPair(cpuId, gpuId, a, b, af, bf) {
-        document.getElementById(cpuId).textContent = a != null ? af(a) : '\u2014';
-        document.getElementById(gpuId).textContent = b != null ? bf(b) : '\u2014';
+        var ec = autolab.id(cpuId); if (ec) ec.textContent = a != null ? af(a) : '\u2014';
+        var eg = autolab.id(gpuId); if (eg) eg.textContent = b != null ? bf(b) : '\u2014';
       }
       setPair('cur-load-cpu', 'cur-load-gpu', latest.cpu_load, latest.gpu_util,
         function (x) { return x.toFixed(1) + '%'; },
@@ -416,16 +417,11 @@
       setPair('cur-temp-cpu', 'cur-temp-gpu', latest.cpu_temp, latest.gpu_temp,
         function (x) { return x.toFixed(1) + '\u00b0C'; },
         function (x) { return x.toFixed(1) + '\u00b0C'; });
-      document.getElementById('cur-ram').textContent =
-        latest.ram_percent != null ? latest.ram_percent.toFixed(1) + '%' : '\u2014';
-      document.getElementById('cur-swap').textContent =
-        latest.swap_percent != null ? latest.swap_percent.toFixed(1) + '%' : '\u2014';
-      document.getElementById('cur-gmem').textContent =
-        latest.gpu_mem_percent != null ? latest.gpu_mem_percent.toFixed(1) + '%' : '\u2014';
-      document.getElementById('cur-pcie-tx').textContent =
-        latest.pcie_tx_mbps != null ? latest.pcie_tx_mbps.toFixed(2) + ' MB/s' : '\u2014';
-      document.getElementById('cur-pcie-rx').textContent =
-        latest.pcie_rx_mbps != null ? latest.pcie_rx_mbps.toFixed(2) + ' MB/s' : '\u2014';
+      var er = autolab.id('cur-ram'); if (er) er.textContent = latest.ram_percent != null ? latest.ram_percent.toFixed(1) + '%' : '\u2014';
+      var es = autolab.id('cur-swap'); if (es) es.textContent = latest.swap_percent != null ? latest.swap_percent.toFixed(1) + '%' : '\u2014';
+      var egm = autolab.id('cur-gmem'); if (egm) egm.textContent = latest.gpu_mem_percent != null ? latest.gpu_mem_percent.toFixed(1) + '%' : '\u2014';
+      var ept = autolab.id('cur-pcie-tx'); if (ept) ept.textContent = latest.pcie_tx_mbps != null ? latest.pcie_tx_mbps.toFixed(2) + ' MB/s' : '\u2014';
+      var epr = autolab.id('cur-pcie-rx'); if (epr) epr.textContent = latest.pcie_rx_mbps != null ? latest.pcie_rx_mbps.toFixed(2) + ' MB/s' : '\u2014';
 
       var gpuLive = latest.gpu_util != null || latest.gpu_temp != null || latest.gpu_clock != null;
       elGpuBanner.className = 'gpu-banner ' + (gpuLive ? 'ok' : 'warn');
@@ -442,8 +438,8 @@
    * Loading shimmer
    * ================================================================ */
   function setChartsLoading(on) {
-    document.querySelectorAll('.chart-wrap').forEach(function (w) {
-      w.classList.toggle('chart-loading', !!on);
+    autolab.qsa('.chart-wrap').forEach(function (w) {
+      autolab.cls.toggle(w, 'chart-loading', !!on);
     });
   }
 
@@ -564,7 +560,7 @@
     if (opts.endIso) url += '&end=' + encodeURIComponent(opts.endIso);
     if (simplifyPoints > 0) url += '&simplify_points=' + encodeURIComponent(simplifyPoints);
     if (dev) url += '&device=' + encodeURIComponent(dev);
-    return fetch(url).then(function (r) { return r.json(); });
+    return autolab.fetchJSON(url);
   }
 
   function fetchHistory() {
@@ -638,8 +634,7 @@
     lastDeltaSentAt = nowMs;
     var url = '/api/monitor/history_delta?since=' + encodeURIComponent(since);
     if (dev) url += '&device=' + encodeURIComponent(dev);
-    return fetch(url)
-      .then(function (r) { return r.json(); })
+    return autolab.fetchJSON(url)
       .then(function (data) {
         var n = (data && data.metrics) ? data.metrics.length : 0;
         if (n > 0) {
@@ -864,9 +859,9 @@
   /* ================================================================
    * Event: range buttons (pure client-side — no network request)
    * ================================================================ */
-  document.querySelectorAll('.range-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.range-btn').forEach(function (b) { b.classList.remove('active'); });
+  autolab.qsa('.range-btn').forEach(function (btn) {
+    autolab.on(btn, 'click', function () {
+      autolab.qsa('.range-btn').forEach(function (b) { b.classList.remove('active'); });
       btn.classList.add('active');
       currentMinutes = parseInt(btn.getAttribute('data-minutes'), 10);
       scheduleRender();

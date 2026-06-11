@@ -1,9 +1,10 @@
 (function () {
-  var chartPanel = document.getElementById('chart-panel');
-  var chartWrap = document.getElementById('chart-wrap');
-  var chartTitle = document.getElementById('chart-title');
-  var chartEmpty = document.getElementById('chart-empty');
-  var elStatus = document.getElementById('status');
+  var autolab = window.autolab || {};
+  var chartPanel = autolab.id('chart-panel');
+  var chartWrap = autolab.id('chart-wrap');
+  var chartTitle = autolab.id('chart-title');
+  var chartEmpty = autolab.id('chart-empty');
+  var elStatus = autolab.id('status');
   var balanceChart = null;
   var selectedCell = null;
   var historyDays = null;
@@ -17,7 +18,7 @@
 
   function ensureChart() {
     if (balanceChart) return balanceChart;
-    balanceChart = new Chart(document.getElementById('chart'), {
+    balanceChart = new Chart(autolab.id('chart'), {
       type: 'line',
       data: {
         datasets: [{
@@ -87,8 +88,7 @@
       return historySeriesInflight[k];
     }
     var q = historyDays != null && historyDays > 0 ? 'days=' + historyDays : '';
-    historySeriesInflight[k] = fetch('/api/balance_history_batch?' + q)
-      .then(function (r) { return r.json(); })
+    historySeriesInflight[k] = autolab.fetchJSON('/api/balance_history_batch?' + q)
       .then(function (data) {
         historySeriesCache[k] = data.series || {};
         delete historySeriesInflight[k];
@@ -117,7 +117,7 @@
     }
     chartEmpty.style.display = 'none';
     chartWrap.style.display = 'block';
-    document.getElementById('chart-controls').style.display = 'flex';
+    var controls = autolab.id('chart-controls'); if (controls) controls.style.display = 'flex';
 
     var chart = ensureChart();
     chart.data.datasets[0].data = points
@@ -126,7 +126,7 @@
     chart.update();
 
     chartTitle.textContent = channel + ' - ' + bettor;
-    chartPanel.style.display = 'block';
+    if (chartPanel) chartPanel.style.display = 'block';
   }
 
   function loadHistory(channel, bettor) {
@@ -142,10 +142,10 @@
   }
 
   function attachCellClickHandlers() {
-    document.querySelectorAll('td.balance[data-channel][data-bettor]').forEach(function (td) {
+    autolab.qsa('td.balance[data-channel][data-bettor]').forEach(function (td) {
       if (td.getAttribute('data-bound') === '1') return;
       td.setAttribute('data-bound', '1');
-      td.addEventListener('click', function () {
+      autolab.on(td, 'click', function () {
         if (selectedCell) selectedCell.classList.remove('selected');
         td.classList.add('selected');
         selectedCell = td;
@@ -154,8 +154,7 @@
     });
   }
 
-  fetch('/api/balances')
-    .then(function (r) { return r.json(); })
+  autolab.fetchJSON('/api/balances')
     .then(function (data) {
       data.rows.forEach(function (row) {
         row.cells.forEach(function (cell) {
@@ -182,14 +181,14 @@
           }
         });
       });
-      elStatus.textContent = 'Updated with live data.';
+      autolab.setText('status', 'Updated with live data.');
       attachCellClickHandlers();
     })
-    .catch(function () { elStatus.textContent = 'Update failed.'; });
+    .catch(function () { autolab.setText('status', 'Update failed.'); });
 
-  document.querySelectorAll('#chart-controls .range-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('#chart-controls .range-btn').forEach(function (b) { b.classList.remove('active'); });
+  autolab.qsa('#chart-controls .range-btn').forEach(function (btn) {
+    autolab.on(btn, 'click', function () {
+      autolab.qsa('#chart-controls .range-btn').forEach(function (b) { b.classList.remove('active'); });
       btn.classList.add('active');
       var d = btn.getAttribute('data-days');
       historyDays = d ? parseInt(d, 10) : null;

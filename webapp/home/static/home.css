@@ -10,15 +10,15 @@ h1 {
   margin-bottom: 0.35rem;
 }
 .subtitle {
-  color: #666;
+  color: var(--muted);
   font-size: 0.85rem;
   margin-bottom: 1.5rem;
 }
 
 /* ── Restart banner (visible when toggles differ from page load) ─ */
 .restart-banner {
-  background: #1f1a10;
-  border: 1px solid #5a4520;
+  background: linear-gradient(180deg, rgba(255, 213, 138, 0.1), rgba(58, 48, 32, 0.15));
+  border: 1px solid rgba(255, 213, 138, 0.22);
   color: #ffd58a;
   padding: 0.85rem 1rem;
   border-radius: 0.5rem;
@@ -43,34 +43,34 @@ h1 {
 .restart-cmd {
   margin: 0.4rem 0 0.5rem;
   padding: 0.45rem 0.65rem;
-  background: #0f0f0f;
-  border: 1px solid #3a3020;
+  background: rgba(15, 15, 15, 0.72);
+  border: 1px solid rgba(255, 213, 138, 0.15);
   border-radius: 0.35rem;
   color: #e8e0d0;
   font-size: 0.85rem;
   overflow-x: auto;
 }
 .copy-btn {
-  background: #3a3020;
+  background: rgba(255, 213, 138, 0.1);
   color: #ffd58a;
-  border: 1px solid #5a4520;
+  border: 1px solid rgba(255, 213, 138, 0.22);
   padding: 0.35rem 0.75rem;
   font-size: 0.78rem;
   border-radius: 0.35rem;
   cursor: pointer;
 }
-.copy-btn:hover { background: #4a4030; }
+.copy-btn:hover { background: rgba(255, 213, 138, 0.16); }
 .save-btn {
-  background: #2f6f3a;
-  color: #e8ffe8;
-  border: 1px solid #459757;
+  background: rgba(67, 160, 71, 0.18);
+  color: #dff8e1;
+  border: 1px solid rgba(67, 160, 71, 0.5);
   padding: 0.35rem 0.75rem;
   font-size: 0.78rem;
   border-radius: 0.35rem;
   cursor: pointer;
   margin-bottom: 0.5rem;
 }
-.save-btn:hover { background: #388945; }
+.save-btn:hover { background: rgba(67, 160, 71, 0.28); }
 .save-btn:disabled {
   opacity: 0.6;
   cursor: default;
@@ -87,8 +87,8 @@ h1 {
 }
 .card {
   display: block;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.6rem;
   padding: 1.25rem;
   text-decoration: none;
@@ -96,8 +96,8 @@ h1 {
   transition: border-color 0.2s, background 0.15s, opacity 0.2s;
 }
 .card:hover {
-  border-color: #555;
-  background: #1f1f1f;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
 }
 .card.card-off {
   opacity: 0.5;
@@ -123,7 +123,7 @@ h1 {
 }
 .card-desc {
   font-size: 0.78rem;
-  color: #888;
+  color: var(--muted);
   line-height: 1.45;
 }
 

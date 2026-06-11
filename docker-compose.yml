@@ -128,6 +128,7 @@ services:
       MYSQL_HOST: autolab-nextcloud-db
     volumes:
       - nextcloud_html:/var/www/html
+      # - /mnt/nextcloud-data:/var/www/html/data  # Optional external data volume (bind mount) for easier access outside the container. Ensure permissions match AUTOLAB_UID/GID.
 
   # ── Inbound gateway (Telegram webhook + optional ngrok) ─────
   autolab-inbound:

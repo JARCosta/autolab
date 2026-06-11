@@ -1,6 +1,7 @@
 (function () {
-  const statusEl = document.getElementById('lb-status')
-  const wrapEl = document.getElementById('lb-table-wrap')
+  const autolab = window.autolab || {}
+  const statusEl = autolab.id('lb-status')
+  const wrapEl = autolab.id('lb-table-wrap')
 
   function esc (s) {
     const d = document.createElement('div')
@@ -46,11 +47,7 @@
     wrapEl.classList.remove('is-hidden')
   }
 
-  fetch('/api/discord/leaderboard')
-    .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status)
-      return r.json()
-    })
+  autolab.fetchJSON('/api/discord/leaderboard')
     .then(function (data) {
       render(data.players || [])
     })

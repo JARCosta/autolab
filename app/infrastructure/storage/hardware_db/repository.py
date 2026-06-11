@@ -11,6 +11,7 @@ HW_SELECT_FIELDS = (
     "timestamp",
     "cpu_load",
     "cpu_clock",
+    "cpu_clock_cores",
     "cpu_temp",
     "device",
     "ram_percent",
@@ -35,6 +36,7 @@ def init_db() -> None:
                 timestamp TEXT NOT NULL,
                 cpu_load REAL,
                 cpu_clock REAL,
+                cpu_clock_cores TEXT,
                 cpu_temp REAL,
                 device TEXT NOT NULL DEFAULT 'local',
                 ram_percent REAL,
@@ -56,6 +58,15 @@ def init_db() -> None:
             ON hardware_metrics (device, timestamp)
             """
         )
+        # Ensure new column `cpu_clock_cores` exists for older DBs.
+        cur = conn.execute("PRAGMA table_info('hardware_metrics')")
+        cols = [row[1] for row in cur.fetchall()]
+        if 'cpu_clock_cores' not in cols:
+            try:
+                conn.execute("ALTER TABLE hardware_metrics ADD COLUMN cpu_clock_cores TEXT")
+            except sqlite3.OperationalError:
+                # Ignore if another process added it concurrently or unsupported
+                pass
 
 
 def prune_before(conn: sqlite3.Connection, cutoff_iso: str) -> None:

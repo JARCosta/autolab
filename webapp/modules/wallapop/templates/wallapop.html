@@ -1,9 +1,7 @@
 {% extends "module_layout.html" %}
 {% block module_title %}Wallapop{% endblock %}
 {% block module_heading %}Wallapop{% endblock %}
-{% block head_extra %}
-  <link rel="stylesheet" href="{{ url_for('wallapop.static', filename='wallapop.css', v=asset_version) }}">
-{% endblock %}
+{% block head_extra %}{% endblock %}
 {% block sidebar_lead %}
   <p class="sidebar-lead">Standardized module sidebar. Terms are managed through Telegram commands.</p>
 {% endblock %}
@@ -41,6 +39,6 @@
           </tbody>
         </table>
         {% else %}
-        <p class="empty">No search terms configured.</p>
+        <p class="empty-state">No search terms configured.</p>
         {% endif %}
 {% endblock %}

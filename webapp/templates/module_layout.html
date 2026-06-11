@@ -51,6 +51,7 @@
     {% endblock %}
   </div>
 
+  <script src="{{ url_for('shared.static', filename='common.js', v=asset_version) }}"></script>
   {% block body_scripts %}{% endblock %}
 </body>
 </html>

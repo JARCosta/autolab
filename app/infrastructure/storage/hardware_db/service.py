@@ -8,6 +8,7 @@ import re
 import socket
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import json
 
 from . import repository
 
@@ -136,6 +137,7 @@ def _ensure_db() -> None:
 def store_metrics(
     cpu_load: float | None,
     cpu_clock: float | None,
+    cpu_clock_cores: Any | None,
     cpu_temp: float | None,
     *,
     device: str | None = None,
@@ -164,6 +166,7 @@ def store_metrics(
             ts,
             cpu_load,
             cpu_clock,
+            (json.dumps(cpu_clock_cores) if cpu_clock_cores is not None else None),
             cpu_temp,
             dev,
             ram_percent,
@@ -204,11 +207,22 @@ def store_metrics_batch(samples: list[dict[str, Any]], *, device: str | None = N
     rows_values: list[tuple] = []
     for sample in samples:
         ts = _parse_client_timestamp(sample.get("timestamp"))
+        raw_cores = sample.get("cpu_clock_cores")
+        if raw_cores is None:
+            cores_val = None
+        elif isinstance(raw_cores, str):
+            cores_val = raw_cores
+        else:
+            try:
+                cores_val = json.dumps(raw_cores)
+            except (TypeError, ValueError):
+                cores_val = None
         rows_values.append(
             (
                 ts,
                 _float_field(sample, "cpu_load"),
                 _float_field(sample, "cpu_clock"),
+                cores_val,
                 _float_field(sample, "cpu_temp"),
                 dev,
                 _float_field(sample, "ram_percent"),
