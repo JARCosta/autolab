@@ -8,7 +8,12 @@ import numpy as np
 import websocket
 
 from logging_config import setup_logging
-from app.backend.notifications import add_telegram_log, send_message, send_telegram_log
+from app.backend.notifications import (
+    add_telegram_log,
+    send_message,
+    send_telegram_log,
+    send_aggregated_error,
+)
 from app.infrastructure.storage.balances_db import fetch_and_store_balance
 
 from .betting_runner import betting_function
@@ -73,7 +78,7 @@ class Bettor:
             try:
                 betting_function(self.ws, self.username, self.channel, self.kill_event)
             except Exception:
-                send_message(traceback.format_exc(), notification=True)
+                send_aggregated_error(traceback.format_exc(), source=f"[{self.channel}, {self.username}]")
 
             _, contest = get_active_contest(self.channel)
             if contest:
@@ -135,7 +140,7 @@ class Bettor:
             try:
                 threading.Thread(target=betting_function, args=[ws, self.username, self.channel, self.kill_event]).start()
             except Exception:
-                send_message(f"[{self.channel}, {self.username}] Error on betting thread:\n {traceback.format_exc()}", notification=True)
+                send_aggregated_error(f"Error on betting thread:\n {traceback.format_exc()}", source=f"[{self.channel}, {self.username}]")
 
         elif "won the contest" in message_text:
             last_bet = get_last_bet(self.channel)
@@ -201,12 +206,12 @@ class Bettor:
     def on_error(self, ws: websocket.WebSocketApp, error: str):
         log.error("%s", error)
         if isinstance(error, (websocket._exceptions.WebSocketConnectionClosedException, TimeoutError)):
-            add_telegram_log(f"[{self.channel}, {self.username}] RECONNECT ({error})\n")
+            send_aggregated_error(f"RECONNECT", source=f"[{self.channel}, {self.username}]")
             self.ws, self.wst = reconnect_ws(self.ws)
         else:
-            telegram_message = f"[{self.channel}, {self.username}] {traceback.format_exc()}\n"
-            send_message(telegram_message, notification=True)
-            log.error("%s", telegram_message)
+            # Send aggregated error notifications to avoid spam; still log full traceback locally
+            send_aggregated_error(f"Bettor Error: {traceback.format_exc()}", source=f"[{self.channel}, {self.username}]")
+            log.error("%s", f"[{self.channel}, {self.username}]")
 
     def on_open(self, ws: websocket.WebSocketApp):
         ws.send("CAP REQ :twitch.tv/tags twitch.tv/commands")
