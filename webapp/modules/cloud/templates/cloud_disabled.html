@@ -2,9 +2,9 @@
 {% block module_title %}Nextcloud{% endblock %}
 {% block module_heading %}Nextcloud{% endblock %}
 {% block sidebar_lead %}
-  <p class="sidebar-lead">Cloud storage is off until you enable it on the home page.</p>
+  <p class="sidebar-lead">Cloud storage is managed by server-setup and redirects here when NEXTCLOUD_PUBLIC_URL is set.</p>
 {% endblock %}
 {% block content %}
-  <h1>Nextcloud is disabled</h1>
-  <p class="subtitle">Turn on <strong>Nextcloud</strong> on the AutoLab home screen, click <strong>Save modules</strong>, then run <code>autolab restart</code> on the server. After that, <a href="/cloud">/cloud</a> will send you to the Nextcloud UI.</p>
+  <h1>Nextcloud is unavailable</h1>
+  <p class="subtitle">The <strong>/cloud</strong> route redirects to the configured public Nextcloud URL. If this page appears, set <code>NEXTCLOUD_PUBLIC_URL</code> on the server.</p>
 {% endblock %}

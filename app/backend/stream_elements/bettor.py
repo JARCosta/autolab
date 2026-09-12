@@ -6,15 +6,11 @@ from contextlib import suppress
 
 import numpy as np
 import websocket
-
+from websocket._exceptions import WebSocketConnectionClosedException
 from logging_config import setup_logging
-from app.backend.notifications import (
-    add_telegram_log,
-    send_message,
-    send_telegram_log,
-    send_aggregated_error,
-)
+from app.backend.notifications import send_message
 from app.infrastructure.storage.balances_db import fetch_and_store_balance
+from app.infrastructure.http_clients.twitch import is_channel_live
 
 from .betting_runner import betting_function
 from .contests import get_active_contest
@@ -29,6 +25,17 @@ from .twitch_chat import (
 )
 
 log = setup_logging("bettor")
+LIVE_POLL_SECONDS = 30
+
+
+def _send_live_status_notification(channel: str, username: str, is_live: bool) -> None:
+    state = "live" if is_live else "offline"
+    send_message(
+        f"Twitch channel is now {state}.",
+        log=False,
+        notification=True,
+        source=f"[{channel}, {username}]",
+    )
 
 
 def run_ws(websocket_url, on_message, on_error, on_open):
@@ -77,8 +84,8 @@ class Bettor:
         if self.bettor:
             try:
                 betting_function(self.ws, self.username, self.channel, self.kill_event)
-            except Exception:
-                send_aggregated_error(traceback.format_exc(), source=f"[{self.channel}, {self.username}]")
+            except (OSError, RuntimeError, TypeError, ValueError, websocket.WebSocketException, KeyError):
+                send_message(traceback.format_exc(), log=False, notification=True, source=f"[{self.channel}, {self.username}]")
 
             _, contest = get_active_contest(self.channel)
             if contest:
@@ -98,13 +105,13 @@ class Bettor:
             log.info("[%s, %s] %s connected", self.channel, self.username, "Bettor" if self.bettor else "Viewer")
             self.launched_event.set()
         elif ":tmi.twitch.tv RECONNECT" in message:
-            add_telegram_log(f"[{self.channel}, {self.username}] RECONNECT\n")
             self.ws, self.wst = reconnect_ws(self.ws)
+            send_message("RECONNECT", log=True, notification=False, source=f"[{self.channel}, {self.username}]")
         elif "PING :tmi.twitch.tv" in message:
             ws.send("PONG")
             ws.send("PING")
         elif ":Login authentication failed" in message:
-            send_message(f"{self.__class__.__name__.capitalize()}: Invalid {self.username}'s OAuth key", notification=True)
+            send_message(f"{self.__class__.__name__.capitalize()}: Invalid {self.username}'s OAuth key", notification=True, source=f"[{self.channel}, {self.username}]")
 
     def on_message(self, ws: websocket.WebSocketApp, message: str):
         self.connect(ws, message)
@@ -118,7 +125,7 @@ class Bettor:
         if sender.lower() != "streamelements" and sender.lower() != "nightbot":
             if mentioned:
                 if self.username.lower() != "TopGdosKwanzas".lower():
-                    send_message(f"[{self.channel}, {self.username}] {sender}: {message_text}", log=False, notification=True)
+                    send_message(f"{sender}: {message_text}", log=False, notification=True, source=f"[{self.channel}, {self.username}]")
                 return
             if self.repeater:
                 message_frequency = get_message_frequency(self.channel, message_text)
@@ -139,8 +146,8 @@ class Bettor:
         if "a new contest has started" in message_text:
             try:
                 threading.Thread(target=betting_function, args=[ws, self.username, self.channel, self.kill_event]).start()
-            except Exception:
-                send_aggregated_error(f"Error on betting thread:\n {traceback.format_exc()}", source=f"[{self.channel}, {self.username}]")
+            except (OSError, RuntimeError, TypeError, ValueError, websocket.WebSocketException, KeyError):
+                send_message(f"Error on betting thread:\n {traceback.format_exc()}", log=True, notification=True, source=f"[{self.channel}, {self.username}]")
 
         elif "won the contest" in message_text:
             last_bet = get_last_bet(self.channel)
@@ -152,11 +159,9 @@ class Bettor:
                 _, bet_profit, bet_odd = bet_stats(options, last_bet["bet_option"], last_bet["bet_amount"])
                 telegram_message = f"Won a bet of {last_bet['bet_amount']} points\n"
                 telegram_message += f"Profit: {round(bet_profit, 3)} points at odd {round(bet_odd, 3)}\n"
-                send_telegram_log()
                 send_message(telegram_message, notification=True)
             else:
                 telegram_message = f"Lost a bet of {last_bet['bet_amount']} points\n"
-                send_telegram_log()
                 send_message(telegram_message, notification=True)
             self.last_contest = None
             # StreamElements has settled the contest; balance may have changed.
@@ -203,14 +208,17 @@ class Bettor:
                 time.sleep(np.random.uniform(3, 5))
                 ws.send(f"PRIVMSG #{self.channel.lower()} : parece facil")
 
-    def on_error(self, ws: websocket.WebSocketApp, error: str):
+    def on_error(self, _ws: websocket.WebSocketApp, error: str):
         log.error("%s", error)
-        if isinstance(error, (websocket._exceptions.WebSocketConnectionClosedException, TimeoutError)):
-            send_aggregated_error(f"RECONNECT", source=f"[{self.channel}, {self.username}]")
+        if isinstance(error, (WebSocketConnectionClosedException, TimeoutError)):
+            send_message("Connection timeout", log=True, notification=False, source=f"[{self.channel}, {self.username}]")
+            self.ws, self.wst = reconnect_ws(self.ws)
+        elif isinstance(error, OSError) and error.errno == 113:
+            send_message("No route to host", log=True, notification=False, source=f"[{self.channel}, {self.username}]")
             self.ws, self.wst = reconnect_ws(self.ws)
         else:
             # Send aggregated error notifications to avoid spam; still log full traceback locally
-            send_aggregated_error(f"Bettor Error: {traceback.format_exc()}", source=f"[{self.channel}, {self.username}]")
+            send_message(f"Bettor Error: {traceback.format_exc()}", log=True, notification=True, source=f"[{self.channel}, {self.username}]")
             log.error("%s", f"[{self.channel}, {self.username}]")
 
     def on_open(self, ws: websocket.WebSocketApp):
@@ -218,3 +226,58 @@ class Bettor:
         ws.send(f"PASS oauth:{self.oauth_key}")
         ws.send(f"NICK {self.username}")
         ws.send(f"USER {self.username} 8 * :{self.username}")
+
+
+def run_when_live(
+    channel: str,
+    username: str,
+    oauth_key: str,
+    kill_event: threading.Event,
+    bettor: bool = False,
+    repeater: bool = False,
+):
+    """Keep a Bettor session connected only while the Twitch channel is live."""
+
+    channel_login = channel.lower()
+    last_live: bool | None = None
+    while not kill_event.is_set():
+        is_live = is_channel_live(channel_login, oauth_key)
+        if is_live != last_live:
+            if last_live is not None:
+                _send_live_status_notification(channel, username, is_live)
+            last_live = is_live
+
+        if not is_live:
+            kill_event.wait(timeout=LIVE_POLL_SECONDS)
+            continue
+
+        session_event = threading.Event()
+        bettor_thread = threading.Thread(
+            target=Bettor,
+            args=(channel, username, oauth_key, session_event, bettor, repeater),
+            daemon=False,
+            name=f"bettor-session:{channel}:{username}",
+        )
+        bettor_thread.start()
+
+        while bettor_thread.is_alive() and not kill_event.is_set(): # while the bettor thread is alive and the kill event is not set
+            is_live = is_channel_live(channel_login, oauth_key)
+            if is_live != last_live: # if the live status has changed since the last check
+                if last_live is not None:
+                    _send_live_status_notification(channel, username, is_live)
+                last_live = is_live
+
+            if not is_live: # if the channel is no longer live, set the session event to signal the bettor thread to exit and break the loop
+                session_event.set()
+                break
+            kill_event.wait(timeout=LIVE_POLL_SECONDS)
+
+        session_event.set()
+        bettor_thread.join(timeout=10)
+
+        if kill_event.is_set():
+            break
+
+        # If the channel is still live and the worker exited unexpectedly, restart it.
+        if is_channel_live(channel_login, oauth_key):
+            time.sleep(5)

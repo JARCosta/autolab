@@ -5,7 +5,9 @@ Domain services (stream_elements betting, wallapop_tracker, webapp commands) sen
 messages through this API. The channel is set at runtime startup to the Telegram
 implementation so domain code does not depend on the web layer.
 """
+from dataclasses import dataclass, field
 import threading
+import time
 from typing import Any, Optional
 
 _channel: Optional["NotificationChannel"] = None
@@ -24,7 +26,9 @@ class NotificationChannel:
         """Send an image with optional caption."""
         raise NotImplementedError
 
-    def edit_message(self, chat_id: int, message_id: int, text: str) -> Any:
+    def edit_message(
+        self, chat_id: int, message_id: int, text: str, notification: bool = True
+    ) -> Any:
         """Edit a previously-sent message."""
         raise NotImplementedError
 
@@ -50,8 +54,7 @@ class NotificationChannel:
 
 
 def set_channel(channel: NotificationChannel) -> None:
-    global _channel
-    _channel = channel
+    globals()["_channel"] = channel
 
 
 def _channel_or_raise() -> NotificationChannel:
@@ -62,85 +65,114 @@ def _channel_or_raise() -> NotificationChannel:
     return _channel
 
 
-def send_message(message: str, log: bool = True, notification: bool = False) -> Any:
-    return _channel_or_raise().send_message(message, log=log, notification=notification)
+@dataclass
+class _MessageEntry:
+    message: str
+    created_at: float
+    last_seen: float
+    count: int = 1
+    sources: set[str] = field(default_factory=set)
+    notification_result: Any = None
+    log_result: Any = None
 
 
-# Simple aggregated error notifier to collapse repeated equivalent errors
-class _ErrorAggregator:
-    def __init__(self):
+class _MessageMerger:
+    def __init__(self) -> None:
         self._lock = threading.Lock()
-        # key -> {count: int, sources: set[str], timer: threading.Timer, last_message: str}
-        self._map: dict[str, dict] = {}
+        self._entries: dict[str, _MessageEntry] = {}
 
-    def _send_summary(self, key: str):
-        with self._lock:
-            entry = self._map.pop(key, None)
-        if not entry:
+    @staticmethod
+    def _key(message: str, log: bool, notification: bool) -> str:
+        normalized = message.strip().splitlines()[-1].lower()
+        return f"{normalized}:{int(log)}:{int(notification)}"
+        # return hash(message)
+
+    @staticmethod
+    def _render(key: str, message: str, sources: set[str], count: int) -> str:
+        parts = [message.strip()]
+        if count > 1:
+            parts.append(f"Merged {count} messages")
+        if sources:
+            parts.append(f"Sources: {', '.join(sorted(sources))}")
+        # parts.append(f"Key: {key}, Hash: {hash(message)}")
+        return "\n".join(parts)
+
+    @staticmethod
+    def _edit_result(result: Any, text: str, notification: bool) -> None:
+        if not isinstance(result, dict):
             return
-        count = entry["count"]
-        sources = sorted(entry["sources"])
-        last = entry.get("last_message", "")
-        short = last.splitlines()[0] if last else "(no details)"
-        msg = f"[{count}x] Repeated error: {short}\nSources: {', '.join(sources)}\n"
-        if count == 1:
-            msg = f"1 occurrence: {last}\n"
-        # send as notification+log when channel present
-        try:
-            send_message(msg, log=True, notification=True)
-        except Exception:
-            # best-effort: swallow to avoid recursion
-            pass
+        chat_id = result.get("chat", {}).get("id")
+        message_id = result.get("message_id")
+        if chat_id and message_id:
+            edit_message(chat_id, message_id, text, notification=notification)
 
-    def notify(self, message: str, source: Optional[str] = None, window: int = 30) -> None:
-        """Notify about an error but aggregate repeated equivalent messages.
-
-        - message: full message (traceback ok)
-        - source: identifier like "channel, username"
-        - window: aggregation window in seconds
-        """
-        # create a simple key from the first line of message to group similar errors
-        key = message.splitlines()[0] if message else ""
+    def send(
+        self,
+        message: str,
+        *,
+        log: bool = True,
+        notification: bool = False,
+        source: Optional[str] = None,
+        window: int = 300,
+    ) -> Any:
+        key = self._key(message, log, notification)
+        now = time.monotonic()
         with self._lock:
-            entry = self._map.get(key)
-            if entry is None:
-                entry = {"count": 1, "sources": set(), "last_message": message, "message_result": None, "short": None}
+            entry = self._entries.get(key)
+            if entry is not None and now - entry.last_seen <= window:
+                entry.count += 1
+                entry.last_seen = now
                 if source:
-                    entry["sources"].add(source)
-                short = message.splitlines()[0] if message else "(no details)"
-                entry["short"] = short
-                # send a concise notification (short headline + sources) and keep its message result for editing
-                notif_text = f"{short}\nSources: {source}" if source else short
-                res = send_message(notif_text, log=False, notification=True)
-                entry["message_result"] = res
-                # always write full details to the logs
-                send_message(f"[{source}] {message}", log=True, notification=False)
-                self._map[key] = entry
-            else:
-                entry["count"] += 1
-                if source:
-                    entry["sources"].add(source)
-                entry["last_message"] = message
-                # update the notification message to include the expanded sources list
-                sources_str = ", ".join(sorted(entry["sources"])) if entry["sources"] else ""
-                new_text = f"{entry['short']}\nSources: {sources_str}" if entry.get("short") else sources_str
-                res = entry.get("message_result")
-                if isinstance(res, dict):
-                    chat_id = res.get("chat", {}).get("id")
-                    message_id = res.get("message_id")
-                    if chat_id and message_id:
-                        edit_message(chat_id, message_id, new_text)
-                # also append full details to the logs
-                send_message(f"[{source}] {message}", log=True, notification=False)
+                    entry.sources.add(source)
+
+                rendered = self._render(key, entry.message, entry.sources, entry.count)
+                self._edit_result(entry.notification_result, rendered, notification=True)
+                self._edit_result(entry.log_result, rendered, notification=False)
+                return entry.notification_result or entry.log_result
+
+            if entry is not None:
+                self._entries.pop(key, None)
+
+            rendered_sources: set[str] = {source} if source else set()
+            rendered = self._render(key, message, rendered_sources, 1)
+
+            channel = _channel_or_raise()
+            notification_result = None
+            log_result = None
+            if notification:
+                notification_result = channel.send_message(rendered, log=False, notification=True)
+            if log:
+                log_result = channel.send_message(rendered, log=True, notification=False)
+
+            self._entries[key] = _MessageEntry(
+                message=message,
+                created_at=now,
+                last_seen=now,
+                count=1,
+                sources=rendered_sources,
+                notification_result=notification_result,
+                log_result=log_result,
+            )
+            return notification_result or log_result
 
 
-
-# singleton aggregator
-_error_aggregator = _ErrorAggregator()
+_message_merger = _MessageMerger()
 
 
-def send_aggregated_error(message: str, source: Optional[str] = None, window: int = 30) -> None:
-    return _error_aggregator.notify(message, source=source, window=window)
+def send_message(
+    message: str,
+    log: bool = True,
+    notification: bool = False,
+    source: Optional[str] = None,
+    window: int = 300,
+) -> Any:
+    return _message_merger.send(
+        message,
+        log=log,
+        notification=notification,
+        source=source,
+        window=window,
+    )
 
 
 def send_image(
@@ -150,15 +182,27 @@ def send_image(
         image_path, caption=caption, log=log, notification=notification
     )
 
-def edit_message(chat_id: int, message_id: int, text: str) -> Any:
-    return _channel_or_raise().edit_message(chat_id, message_id, text)
+
+def edit_message(chat_id: int, message_id: int, text: str, notification: bool = True) -> Any:
+    return _channel_or_raise().edit_message(chat_id, message_id, text, notification=notification)
 
 
-def send_message_threaded(message: str, log: bool = True, notification: bool = False) -> None:
+def send_message_threaded(
+    message: str,
+    log: bool = True,
+    notification: bool = False,
+    source: Optional[str] = None,
+    window: int = 30,
+) -> None:
     threading.Thread(
         target=send_message,
         args=(message,),
-        kwargs={"log": log, "notification": notification},
+        kwargs={
+            "log": log,
+            "notification": notification,
+            "source": source,
+            "window": window,
+        },
         daemon=True,
     ).start()
 
@@ -175,23 +219,24 @@ def send_image_threaded(
 
 
 def add_telegram_log(message: str) -> None:
-    _channel_or_raise().add_log(message)
+    send_message(message, log=True, notification=False)
 
 
 def get_telegram_log() -> str:
-    return _channel_or_raise().get_log()
+    return ""
 
 
 def clear_telegram_log() -> None:
-    _channel_or_raise().clear_log()
+    return None
 
 
 def send_telegram_log() -> None:
-    _channel_or_raise().send_log()
+    return None
 
 
 def send_telegram_log_with_image(image_path: str) -> None:
-    _channel_or_raise().send_log_with_image(image_path)
+    del image_path
+    return None
 
 
 def send_telegram_log_threaded() -> None:

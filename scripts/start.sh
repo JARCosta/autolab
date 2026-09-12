@@ -22,7 +22,33 @@ for p in "${PROFILES[@]}"; do
     [[ -n "$p" ]] && PROFILE_FLAGS+=(--profile "$p")
 done
 
+echo "[autolab] data dir: $(pwd)/data"
+python3 - <<'PY'
+from app.runtime.modules import load_state
+print("[autolab] persisted module state:", load_state())
+PY
+
 echo "[autolab] starting compose with profiles: ${PROFILES[*]:-<none>}"
+# Stop and remove containers for any container-backed modules that are
+# currently disabled so they don't keep running after a restart.
+# This prints service names like: autolab-discord autolab-bettors
+PYOUT=$(python3 - <<'PY'
+from app.runtime.modules import MODULES, container_profiles
+enabled = set(container_profiles())
+servs = []
+for m in MODULES:
+    if m.container and m.name not in enabled:
+        servs.append(f"autolab-{m.name}")
+print(' '.join(servs))
+PY
+) || PYOUT=""
+STOP_SERVICES=( $PYOUT )
+if [ ${#STOP_SERVICES[@]} -gt 0 ]; then
+    echo "[autolab] stopping disabled services: ${STOP_SERVICES[*]}"
+    docker compose stop "${STOP_SERVICES[@]}" || true
+    docker compose rm -f "${STOP_SERVICES[@]}" || true
+fi
+
 # Detached: journal captures pull/build and container start only. Runtime logs are
 # not streamed into systemd; use `autolab logs` or `docker compose logs -f`.
 exec docker compose "${PROFILE_FLAGS[@]}" up --build -d

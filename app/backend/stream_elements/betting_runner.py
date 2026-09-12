@@ -3,16 +3,14 @@
 import datetime
 import json
 import threading
-import time
 
 import websocket
 from logging_config import setup_logging
 
 from app.backend.notifications import (
-    add_telegram_log,
     send_image_threaded,
+    send_message,
     send_message_threaded,
-    send_telegram_log,
 )
 
 from . import contests, local_state, odds, se_helpers
@@ -69,8 +67,7 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
         return False
     if 0 > time_left > -5:
         local_state.change_variable_delay((local_state.DELAY_GOAL - time_left))
-        add_telegram_log(f"Betting {round(-time_left, 2)} seconds late\n")
-        send_telegram_log()
+        send_message(f"Betting {round(-time_left, 2)} seconds late\n", log=True)
         return False
     if 5 > time_left > 0:
         bet_option, bet_amount = odds.optimal_bet(options)
@@ -96,7 +93,6 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
 
         time_left = (end - datetime.datetime.now()).total_seconds()
         local_state.change_variable_delay((local_state.DELAY_GOAL - time_left) / 4)
-        send_telegram_log()
 
         telegram_message = ""
         telegram_message += f"[{channel}, {username}] Betting with {round(time_left, 2)} seconds left\n"

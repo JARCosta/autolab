@@ -4,7 +4,7 @@ import json
 import os
 
 import paths
-from app.backend.notifications import add_telegram_log
+from app.backend.notifications import send_message
 
 RESOURCES_DIR = paths.STREAMELEMENTS_RESOURCES_DIR
 DELAY_DEFAULT = 2.05
@@ -38,7 +38,7 @@ def change_variable_delay(amount: float = 0.1) -> None:
     variable_delay = round(get_variable_delay() + amount, 2)
     set_variable_delay(variable_delay)
     sign = "+" if amount > 0 else "-"
-    add_telegram_log(f"Variable delay changed to {get_variable_delay()}({sign}{round(abs(amount), 2)})\n")
+    send_message(f"Variable delay changed to {get_variable_delay()}({sign}{round(abs(amount), 2)})\n", log=True)
 
 
 def get_last_bet_full() -> dict:

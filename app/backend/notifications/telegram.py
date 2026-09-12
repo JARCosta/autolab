@@ -5,10 +5,17 @@ import time
 import requests
 
 from app.backend.notifications import NotificationChannel
-from app.infrastructure.storage.telegram_log import append_log, clear_log, read_log
 from logging_config import setup_logging
 
 _log = setup_logging("notifications.telegram")
+
+
+class TelegramSendError(RuntimeError):
+    pass
+
+
+class TelegramEditError(RuntimeError):
+    pass
 
 
 class TelegramChannel(NotificationChannel):
@@ -49,7 +56,7 @@ class TelegramChannel(NotificationChannel):
                 time.sleep(wait_time)
                 r = self._do_send(token, params, files)
             else:
-                raise Exception(f"Error sending message: {r.text}\nParams: {params}")
+                raise TelegramSendError(f"Error sending message: {r.text}\nParams: {params}")
         return r
 
     def send_message(self, message: str, log: bool = True, notification: bool = False):
@@ -59,16 +66,22 @@ class TelegramChannel(NotificationChannel):
             r = self._do_send(self._notification_token, params)
         if log and self._logs_token:
             r = self._do_send(self._logs_token, params)
-        return r.json()["result"] if r else None
+        if r:
+            _log.info("Sent message: %s", message)
+            return r.json()["result"]
+        else:
+            _log.warning("No token available for sending message: %s", message)
+            return None
 
-    def edit_message(self, chat_id: int, message_id: int, text: str):
+    def edit_message(self, chat_id: int, message_id: int, text: str, notification: bool = True):
         params = {"chat_id": chat_id, "message_id": message_id, "text": text}
-        if not self._notification_token:
+        token = self._notification_token if notification else self._logs_token
+        if not token:
             return None
         # editMessageText endpoint
         while True:
             try:
-                r = requests.post(f"https://api.telegram.org/bot{self._notification_token}/editMessageText", data=params, timeout=30)
+                r = requests.post(f"https://api.telegram.org/bot{token}/editMessageText", data=params, timeout=30)
                 break
             except requests.exceptions.ConnectionError as e:
                 _log.warning("Connection error: %s", e)
@@ -80,7 +93,7 @@ class TelegramChannel(NotificationChannel):
                 time.sleep(wait_time)
                 return self.edit_message(chat_id, message_id, text)
             else:
-                raise Exception(f"Error editing message: {r.text}\nParams: {params}")
+                raise TelegramEditError(f"Error editing message: {r.text}\nParams: {params}")
         return r.json().get("result")
 
     def send_image(
@@ -97,23 +110,16 @@ class TelegramChannel(NotificationChannel):
         return r.json()["result"] if r else None
 
     def add_log(self, message: str) -> None:
-        append_log(message)
         _log.info("%s", message.rstrip())
 
     def get_log(self) -> str:
-        return read_log()
+        return ""
 
     def clear_log(self) -> None:
-        clear_log()
+        return None
 
     def send_log(self) -> None:
-        msg = self.get_log()
-        if msg:
-            self.send_message(msg)
-            self.clear_log()
+        return None
 
     def send_log_with_image(self, image_path: str) -> None:
-        msg = self.get_log()
-        if msg:
-            self.send_image(image_path, caption=msg)
-            self.clear_log()
+        return None

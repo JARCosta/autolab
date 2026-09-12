@@ -6,7 +6,7 @@ import traceback
 
 import websocket
 from app.backend.notifications import send_message_threaded
-from app.infrastructure.http import streamelements as streamelements_http
+from app.infrastructure.http_clients import streamelements as streamelements_http
 
 from . import se_helpers
 

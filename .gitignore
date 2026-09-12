@@ -3,6 +3,7 @@
 
 # Runtime data
 data/
+backups
 
 # Python
 __pycache__/

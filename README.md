@@ -149,13 +149,11 @@ Telegram commands work on demand. For background polling, enable the
 
 ## Nextcloud
 
-Enable **Nextcloud** on the home page, save, then run `autolab restart`. That starts `autolab-nextcloud` (Apache) and `autolab-nextcloud-db` (MariaDB) under the `nextcloud` compose profile. Open **`http://<host>:5000/cloud`** — when the module is on, that redirects to the Nextcloud UI.
+Nextcloud is now managed by the `server-setup` repository as a standalone service. Open **`http://<host>:5000/cloud`** and AutoLab will redirect to the public Nextcloud URL when it is reachable.
 
-Set **`NEXTCLOUD_PUBLIC_URL`** (in `.env` or the environment) to the URL browsers should use — for example `http://192.168.1.10:8080` or your Tailscale IP if not using localhost. It must match **`NEXTCLOUD_HTTP_PORT`** (mapped host port, default `8080`). Override database passwords with **`NEXTCLOUD_DB_ROOT_PASSWORD`** and **`NEXTCLOUD_DB_PASSWORD`** before exposing this host.
+Set **`NEXTCLOUD_PUBLIC_URL`** (in `.env` or the environment) to the URL browsers should use — for example `http://192.168.1.10:8080` or your Tailscale IP if not using localhost.
 
-Nextcloud is an external Docker image; there is no `app.runtime.entrypoint` handler — only the compose profile and `profiles: ["nextcloud"]` services.
-
-Autolab uses a **fixed Docker bridge subnet** (`AUTOLAB_DOCKER_SUBNET`, default `172.30.0.0/16`) so this stack does not fight CasaOS or other compose projects for auto-allocated ranges. If Docker reports **`failed to set up container networking`**, stop leftover CasaOS stacks if possible, then try `docker compose down` in this repo and `docker network rm autolab_default` if the network still exists (only when no containers use it). CasaOS often binds **port 8080** — set **`NEXTCLOUD_HTTP_PORT`** to another host port if needed.
+Autolab uses a **fixed Docker bridge subnet** (`AUTOLAB_DOCKER_SUBNET`, default `172.30.0.0/16`) so this stack does not fight CasaOS or other compose projects for auto-allocated ranges. If Docker reports **`failed to set up container networking`**, stop leftover CasaOS stacks if possible, then try `docker compose down` in this repo and `docker network rm autolab_default` if the network still exists (only when no containers use it).
 
 ## Adding a Flask blueprint
 

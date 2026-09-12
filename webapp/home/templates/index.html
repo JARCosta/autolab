@@ -21,10 +21,6 @@
         <button type="button" class="save-btn" id="save-modules-btn">Save modules</button>
         <pre class="restart-cmd" id="restart-cmd">autolab restart</pre>
         <button type="button" class="copy-btn" id="copy-restart-cmd">Copy command</button>
-        <p class="restart-footnote">
-          Save writes <code>data/modules.json</code> in one request.
-          Restart applies container changes.
-        </p>
       </div>
     </div>
 
@@ -45,12 +41,14 @@
         </div>
         {% endif %}
 
+        {% if m.toggleable %}
         <label class="toggle" title="Enable / disable {{ m.label }}">
           <input type="checkbox" class="module-toggle"
                  data-module="{{ m.name }}"
                  {% if m.enabled %}checked{% endif %}>
           <span class="slider"></span>
         </label>
+        {% endif %}
       </div>
       {% endfor %}
     </div>

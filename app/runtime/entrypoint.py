@@ -42,7 +42,7 @@ def _setup_common():
 
 def _run_bettors(kill_event: threading.Event) -> list[threading.Thread]:
     """Spawn one Bettor thread per (channel, username) pair."""
-    from app.backend.stream_elements import Bettor
+    from app.backend.stream_elements.bettor import run_when_live
     from app.infrastructure.storage.balances_db.channels_data import (
         active_channels_nested,
     )
@@ -61,7 +61,7 @@ def _run_bettors(kill_event: threading.Event) -> list[threading.Thread]:
         for username, is_bettor in data["Bettors"].items():
             args = (channel, username, oauth[username], kill_event, is_bettor)
             t = threading.Thread(
-                target=Bettor,
+                target=run_when_live,
                 args=args,
                 daemon=False,
                 name=f"bettor:{channel}:{username}",

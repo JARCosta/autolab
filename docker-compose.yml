@@ -3,15 +3,13 @@
 x-autolab-base: &autolab-base
   networks:
     - autolab_default
+  volumes:
+    - ./data:/app/data
   build: .
   env_file:
     - .env
   environment:
     - AUTOLAB_UID=${UID:-1000}
-    - AUTOLAB_GID=${GID:-1000}
-    - PYTHONPATH=/app
-  volumes:
-    - ./data:/app/data
   restart: on-failure
 
 services:
@@ -89,46 +87,6 @@ services:
     profiles: ["continente"]
     depends_on:
       - autolab-tailscale
-
-  # ── Nextcloud (Apache + MariaDB) ────────────────────────────
-  autolab-nextcloud-db:
-    image: mariadb:11.4
-    container_name: autolab-nextcloud-db
-    profiles: ["nextcloud"]
-    networks:
-      - autolab_default
-    restart: unless-stopped
-    command: >
-      --transaction-isolation=READ-COMMITTED
-      --binlog-format=ROW
-    environment:
-      MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD:-changeme-root}
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-changeme-nextcloud}
-      MYSQL_DATABASE: nextcloud
-      MYSQL_USER: nextcloud
-    volumes:
-      - nextcloud_db:/var/lib/mysql
-
-  autolab-nextcloud:
-    image: nextcloud:apache
-    container_name: autolab-nextcloud
-    profiles: ["nextcloud"]
-    networks:
-      - autolab_default
-    restart: unless-stopped
-    ports:
-      - "${NEXTCLOUD_HTTP_PORT:-8080}:80"
-    depends_on:
-      - autolab-nextcloud-db
-      - autolab-tailscale
-    environment:
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-changeme-nextcloud}
-      MYSQL_DATABASE: nextcloud
-      MYSQL_USER: nextcloud
-      MYSQL_HOST: autolab-nextcloud-db
-    volumes:
-      - nextcloud_html:/var/www/html
-      # - /mnt/nextcloud-data:/var/www/html/data  # Optional external data volume (bind mount) for easier access outside the container. Ensure permissions match AUTOLAB_UID/GID.
 
   # ── Inbound gateway (Telegram webhook + optional ngrok) ─────
   autolab-inbound:

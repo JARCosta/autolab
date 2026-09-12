@@ -9,6 +9,7 @@ The ``/cloud`` route checks ``nextcloud`` the same way (redirect vs disabled pag
 
 Adding a new module:
     1. Append an entry to ``MODULES`` below (name = compose-profile name).
+the ``/cloud`` route redirects to the external Nextcloud service when it is reachable.
     2. If it has a per-service container, add a service to ``docker-compose.yml``
        with a matching ``profiles: [<name>]`` entry.
     3. If it adds a UI card, render it via ``modules_for_home()``.
@@ -37,6 +38,7 @@ class ModuleSpec:
     icon_color: str      # CSS class suffix in home.css (.card-icon.<color>)
     icon_svg: str        # inline SVG markup for the card icon
     default_enabled: bool = True
+    toggleable: bool = True  # show a checkbox in the home UI
     container: bool = True  # has its own compose service (False = webapp-internal toggle)
 
 
@@ -114,7 +116,7 @@ MODULES: tuple[ModuleSpec, ...] = (
     ModuleSpec(
         name="nextcloud",
         label="Nextcloud",
-        description="Self-hosted files and sync; toggle starts MariaDB + Nextcloud containers.",
+        description="Self-hosted files and sync, managed by server-setup and surfaced in AutoLab.",
         href="/cloud",
         icon_color="blue",
         icon_svg=(
@@ -125,6 +127,8 @@ MODULES: tuple[ModuleSpec, ...] = (
             ' stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity=".55"/></svg>'
         ),
         default_enabled=False,
+        toggleable=False,
+        container=False,
     ),
 )
 
@@ -160,12 +164,17 @@ def save_state(state: dict[str, bool]) -> None:
 def is_enabled(name: str) -> bool:
     if name not in _by_name():
         return False
+    spec = _by_name()[name]
+    if not spec.toggleable:
+        return True
     return bool(load_state()[name])
 
 
 def set_enabled(name: str, enabled: bool) -> dict[str, bool]:
     if name not in _by_name():
         raise KeyError(f"Unknown module: {name!r}")
+    if not _by_name()[name].toggleable:
+        raise KeyError(f"Module is not toggleable: {name!r}")
     state = load_state()
     state[name] = bool(enabled)
     save_state(state)
@@ -173,8 +182,7 @@ def set_enabled(name: str, enabled: bool) -> dict[str, bool]:
 
 
 def enabled_names() -> list[str]:
-    state = load_state()
-    return [m.name for m in MODULES if state.get(m.name)]
+    return [m.name for m in MODULES if is_enabled(m.name)]
 
 
 def container_profiles() -> list[str]:
@@ -194,7 +202,8 @@ def modules_for_home() -> list[dict]:
             "href": m.href,
             "icon_color": m.icon_color,
             "icon_svg": m.icon_svg,
-            "enabled": state.get(m.name, m.default_enabled),
+            "enabled": state.get(m.name, m.default_enabled) if m.toggleable else True,
+            "toggleable": m.toggleable,
         }
         for m in MODULES
     ]

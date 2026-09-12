@@ -4,7 +4,7 @@ import datetime
 import threading
 
 from app.backend.notifications import send_message, send_message_threaded
-from app.infrastructure.http import faceit, streamelements
+from app.infrastructure.http_clients import faceit, streamelements
 from app.infrastructure.storage.balances_db.channels_data import get_channel_meta, streamelements_account_id
 from logging_config import setup_logging
 
