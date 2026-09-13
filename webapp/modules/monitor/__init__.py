@@ -16,19 +16,17 @@ from urllib.parse import urlparse, urlunparse
 import requests as req_lib
 from flask import Blueprint, jsonify, render_template, request
 
+from app.infrastructure.storage.hardware_db import (HARDWARE_PUSH_BATCH_MAX,
+                                                    get_latest_metric,
+                                                    get_local_device_name,
+                                                    get_metrics_history,
+                                                    get_metrics_since,
+                                                    list_device_names,
+                                                    normalize_device_name,
+                                                    reassign_device_metrics,
+                                                    store_metrics,
+                                                    store_metrics_batch)
 from logging_config import setup_logging
-from app.infrastructure.storage.hardware_db import (
-    HARDWARE_PUSH_BATCH_MAX,
-    get_latest_metric,
-    get_local_device_name,
-    get_metrics_history,
-    get_metrics_since,
-    list_device_names,
-    normalize_device_name,
-    reassign_device_metrics,
-    store_metrics,
-    store_metrics_batch,
-)
 
 log = setup_logging("monitor")
 

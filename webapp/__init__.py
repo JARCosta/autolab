@@ -37,9 +37,9 @@ def create_app():
         return {"asset_version": asset_version}
 
     from app.runtime.modules import is_enabled
+    from webapp.home import home_bp
     from webapp.modules.cloud import cloud_bp
     from webapp.modules.continente import continente_bp
-    from webapp.home import home_bp
     from webapp.modules.discord_bot import discord_bot_bp
     from webapp.modules.streamelements import streamelements_bp
     from webapp.modules.system import system_bp

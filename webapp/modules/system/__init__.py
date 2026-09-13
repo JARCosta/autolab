@@ -10,11 +10,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from app.runtime.modules import (
-    MODULES,
-    load_state,
-    save_state,
-)
+from app.runtime.modules import MODULES, load_state, save_state
 from logging_config import setup_logging
 
 log = setup_logging("system")

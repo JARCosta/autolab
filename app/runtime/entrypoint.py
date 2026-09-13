@@ -43,9 +43,8 @@ def _setup_common():
 def _run_bettors(kill_event: threading.Event) -> list[threading.Thread]:
     """Spawn one Bettor thread per (channel, username) pair."""
     from app.backend.stream_elements.bettor import run_when_live
-    from app.infrastructure.storage.balances_db.channels_data import (
-        active_channels_nested,
-    )
+    from app.infrastructure.storage.balances_db.channels_data import \
+        active_channels_nested
     from app.infrastructure.storage.twitch_oauth import check_oauth_token
 
     channels = active_channels_nested()

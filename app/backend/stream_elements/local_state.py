@@ -8,7 +8,7 @@ from app.backend.notifications import send_message
 
 RESOURCES_DIR = paths.STREAMELEMENTS_RESOURCES_DIR
 DELAY_DEFAULT = 2.05
-DELAY_GOAL = 0.4
+DELAY_GOAL = 0.5
 
 _LAST_BET_FILE = paths.STREAMELEMENTS_LAST_BET_FILE
 

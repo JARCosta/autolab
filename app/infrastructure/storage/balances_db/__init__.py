@@ -6,14 +6,11 @@ from submodules ``.service`` / ``.channels_data`` directly.
 
 from __future__ import annotations
 
-from .channels_data import active_channels_nested, all_accounts, normalize_account_id
-from .service import (
-    fetch_and_store_balance,
-    fetch_and_store_balances,
-    get_balance_history_all_pairs,
-    get_balance_rows_from_cache,
-    record_balance_snapshot,
-)
+from .channels_data import (active_channels_nested, all_accounts,
+                            normalize_account_id)
+from .service import (fetch_and_store_balance, fetch_and_store_balances,
+                      get_balance_history_all_pairs,
+                      get_balance_rows_from_cache, record_balance_snapshot)
 
 __all__ = [
     "active_channels_nested",

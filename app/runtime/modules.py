@@ -22,10 +22,8 @@ import threading
 from dataclasses import dataclass
 from typing import Iterable
 
-from app.infrastructure.storage.modules_state import (
-    load_modules_state,
-    save_modules_state,
-)
+from app.infrastructure.storage.modules_state import (load_modules_state,
+                                                      save_modules_state)
 
 
 @dataclass(frozen=True)

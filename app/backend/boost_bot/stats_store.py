@@ -2,10 +2,8 @@ import asyncio
 
 import discord
 
-from app.infrastructure.storage.discord_db import (
-    load_players_document,
-    save_players_document,
-)
+from app.infrastructure.storage.discord_db import (load_players_document,
+                                                   save_players_document)
 
 
 class PlayerStatsStore:

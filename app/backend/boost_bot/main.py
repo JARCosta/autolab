@@ -6,11 +6,12 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
+from logging_config import setup_logging
+
 # from .config import bot
 from .lobby import Lobby
 from .stats_store import PlayerStatsStore
 from .views import JoinView
-from logging_config import setup_logging
 
 log = setup_logging("boost_bot")
 

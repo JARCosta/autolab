@@ -6,15 +6,11 @@ import time
 
 import requests
 
-from app.infrastructure.http_clients.twitch import (
-    device_flow_poll,
-    device_flow_start,
-    validate_token,
-)
+from app.infrastructure.http_clients.twitch import (device_flow_poll,
+                                                    device_flow_start,
+                                                    validate_token)
 from app.infrastructure.storage.twitch_oauth.repository import (
-    load_oauth_tokens,
-    save_oauth_tokens,
-)
+    load_oauth_tokens, save_oauth_tokens)
 from logging_config import setup_logging
 
 log = setup_logging("twitch.oauth")

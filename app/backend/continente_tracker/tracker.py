@@ -15,13 +15,11 @@ from typing import Any
 import requests
 
 from app.backend import notifications
-from app.infrastructure.storage.continente_db import (
-    already_alerted_at_price,
-    ingest_products,
-    list_products,
-    mark_alerted,
-    should_alert,
-)
+from app.infrastructure.storage.continente_db import (already_alerted_at_price,
+                                                      ingest_products,
+                                                      list_products,
+                                                      mark_alerted,
+                                                      should_alert)
 from logging_config import setup_logging
 
 log = setup_logging("continente_tracker")

@@ -1,12 +1,11 @@
-from abc import ABC
-from datetime import datetime, timedelta
 import json
 import os
+from abc import ABC
+from datetime import datetime, timedelta
 from time import sleep
 from urllib.parse import quote
 
 from playwright.sync_api import sync_playwright
-
 
 BASE_URL = "https://www.sofascore.com"
 

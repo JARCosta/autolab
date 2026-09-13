@@ -5,7 +5,8 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, render_template, request
 
 from app.backend.continente_tracker import run_once
-from app.infrastructure.storage.continente_db import list_products, set_notify, vote
+from app.infrastructure.storage.continente_db import (list_products,
+                                                      set_notify, vote)
 from logging_config import setup_logging
 
 log = setup_logging("webapp.continente")

@@ -5,11 +5,8 @@ from datetime import datetime, timedelta, timezone
 from flask import jsonify, redirect, render_template, request, url_for
 
 from app.infrastructure.storage.balances_db import (
-    fetch_and_store_balances,
-    get_balance_history_all_pairs,
-    get_balance_rows_from_cache,
-)
-from app.infrastructure.storage.balances_db import channels_data
+    channels_data, fetch_and_store_balances, get_balance_history_all_pairs,
+    get_balance_rows_from_cache)
 from app.infrastructure.storage.balances_db.repository import init_db
 from webapp.modules.streamelements import streamelements_bp
 

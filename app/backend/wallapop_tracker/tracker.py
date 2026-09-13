@@ -7,13 +7,12 @@ import traceback
 import requests
 
 from app.backend.notifications import send_message
-from app.infrastructure.storage.wallapop_store import (
-    read_data_lines,
-    read_search_term_lines,
-    save_data_backup,
-    write_data_lines,
-    write_search_term_lines,
-)
+from app.infrastructure.storage.wallapop_store import (read_data_lines,
+                                                       read_search_term_lines,
+                                                       save_data_backup,
+                                                       write_data_lines,
+                                                       write_search_term_lines)
+
 _AFTER_URL = "https://api.wallapop.com/api/v3/search?next_page="
 
 

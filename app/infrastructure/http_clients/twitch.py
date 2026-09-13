@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 import os
+from functools import lru_cache
 from typing import Any
 
 import requests
-
 
 _OAUTH_URL = "https://id.twitch.tv/oauth2"
 _GQL_URL = "https://gql.twitch.tv/gql"

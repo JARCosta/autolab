@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
 import socket
 from datetime import datetime, timedelta, timezone
 from typing import Any
-import json
 
 from . import repository
 
@@ -188,6 +188,7 @@ def store_metrics(
         ).isoformat().replace("+00:00", "Z")
         # run prune in a short dedicated transaction
         import sqlite3
+
         import paths
 
         with sqlite3.connect(paths.HARDWARE_DB) as conn:
@@ -245,6 +246,7 @@ def store_metrics_batch(samples: list[dict[str, Any]], *, device: str | None = N
             datetime.now(timezone.utc) - timedelta(days=HARDWARE_RETENTION_DAYS)
         ).isoformat().replace("+00:00", "Z")
         import sqlite3
+
         import paths
 
         with sqlite3.connect(paths.HARDWARE_DB) as conn:

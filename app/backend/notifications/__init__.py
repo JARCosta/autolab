@@ -5,9 +5,9 @@ Domain services (stream_elements betting, wallapop_tracker, webapp commands) sen
 messages through this API. The channel is set at runtime startup to the Telegram
 implementation so domain code does not depend on the web layer.
 """
-from dataclasses import dataclass, field
 import threading
 import time
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 _channel: Optional["NotificationChannel"] = None

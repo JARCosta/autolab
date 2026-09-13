@@ -5,11 +5,8 @@ For player Elo / W–D–L, use :func:`load_players_document` /
 package.
 """
 
-from .repository import (
-    ensure_boost_data_dir,
-    load_players_document,
-    save_players_document,
-)
+from .repository import (ensure_boost_data_dir, load_players_document,
+                         save_players_document)
 
 __all__ = [
     "ensure_boost_data_dir",
