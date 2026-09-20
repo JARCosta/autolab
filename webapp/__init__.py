@@ -43,6 +43,7 @@ def create_app():
     from webapp.modules.discord_bot import discord_bot_bp
     from webapp.modules.streamelements import streamelements_bp
     from webapp.modules.system import system_bp
+    from webapp.modules.tv import tv_bp
     from webapp.modules.wallapop import wallapop_bp
     from webapp.shared import shared_bp
 
@@ -54,6 +55,7 @@ def create_app():
     app.register_blueprint(wallapop_bp, url_prefix="/")
     app.register_blueprint(continente_bp, url_prefix="/")
     app.register_blueprint(system_bp, url_prefix="/")
+    app.register_blueprint(tv_bp, url_prefix="/")
 
     if is_enabled("monitor"):
         from webapp.modules.monitor import monitor_bp

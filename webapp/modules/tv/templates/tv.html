@@ -1,0 +1,68 @@
+{% extends "module_layout.html" %}
+{% block module_title %}TV Streams{% endblock %}
+{% block module_heading %}TV Streams{% endblock %}
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('tv.static', filename='tv.css', v=asset_version) }}">
+{% endblock %}
+{% block sidebar_lead %}
+  <p class="sidebar-lead">Keep a lightweight list of livestream embeds and switch between them without leaving the dashboard.</p>
+{% endblock %}
+{% block sidebar %}
+  <h2>TV Streams</h2>
+  <div id="stream-list" class="stream-list" aria-live="polite">
+    {% for stream in streams %}
+      <button type="button" class="stream-item{% if loop.first %} active{% endif %}" data-index="{{ loop.index0 }}" data-name="{{ stream.name }}">
+        <span class="stream-name">{{ stream.name }}</span>
+        <span class="stream-source">{{ stream.source }}</span>
+      </button>
+    {% endfor %}
+  </div>
+
+  <form id="add-stream-form" class="add-stream-form">
+    <h3>Add stream</h3>
+
+    <label>
+      <span>Name</span>
+      <input id="stream-name" name="name" type="text" placeholder="Formula 1" autocomplete="off">
+    </label>
+
+    <label>
+      <span>Source URL</span>
+      <input id="stream-url" name="url" type="url" placeholder="https://example.com/play.php?canal=formula1">
+    </label>
+
+    <label>
+      <span>Embed HTML (optional)</span>
+      <textarea id="stream-iframe" name="iframe_html" rows="4" placeholder="Paste the full iframe tag if you have it"></textarea>
+    </label>
+
+    <button type="submit" class="primary-btn">Save stream</button>
+    <p id="stream-form-status" class="form-status" role="status" aria-live="polite"></p>
+  </form>
+{% endblock %}
+{% block content %}
+  <div class="tv-shell">
+    <div class="viewer-header">
+      <h1 id="viewer-title">{{ selected.name if selected else 'No stream selected' }}</h1>
+      <button id="delete-stream-btn" type="button" class="secondary-btn" {% if not selected %}disabled{% endif %}>Delete selected</button>
+    </div>
+
+    {% if selected %}
+      <div class="iframe-wrap">
+        <iframe
+          id="stream-frame"
+          src="{{ selected.url }}"
+          frameborder="0"
+          scrolling="no"
+          allowfullscreen
+          title="{{ selected.name }}">
+        </iframe>
+      </div>
+    {% else %}
+      <div class="empty-state">No TV streams saved yet. Add one from the sidebar.</div>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block body_scripts %}
+  <script src="{{ url_for('tv.static', filename='tv.js', v=asset_version) }}"></script>
+{% endblock %}

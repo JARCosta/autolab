@@ -84,6 +84,22 @@ MODULES: tuple[ModuleSpec, ...] = (
         ),
     ),
     ModuleSpec(
+        name="tv",
+        label="TV Streams",
+        description="Saved livestream embeds from multiple sources, ready to view in one place.",
+        href="/tv",
+        icon_color="purple",
+        icon_svg=(
+            '<svg width="16" height="16" viewBox="0 0 16 16" fill="none">'
+            '<rect x="2.5" y="3.5" width="11" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>'
+            '<path d="M6.5 6.5L10.5 8L6.5 9.5V6.5Z" fill="currentColor"/>'
+            '</svg>'
+        ),
+        default_enabled=True,
+        toggleable=False,
+        container=False,
+    ),
+    ModuleSpec(
         name="wallapop",
         label="Wallapop Tracker",
         description="Polls Wallapop search terms and pushes new listings to Telegram.",
