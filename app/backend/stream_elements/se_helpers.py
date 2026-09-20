@@ -145,5 +145,4 @@ def sleep_until(end: datetime.datetime, kill_thread: threading.Event):
                 break
         time.sleep(sleep_time % 10)
         return True
-    send_message(f"Time has already passed\nNow: {now}\nEnd: {end}\n\n")
     return False

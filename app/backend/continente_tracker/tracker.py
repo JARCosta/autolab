@@ -154,7 +154,7 @@ def run_once() -> dict:
             f"(baseline: {p.get('regular_price')})\n"
             f"Votes: +{p.get('likes', 0)} / -{p.get('dislikes', 0)}"
         )
-        notifications.send_message_threaded(msg, notification=True, log=False)
+        notifications.send_message(msg, notification=True, log=False)
         mark_alerted(int(p["id"]), p.get("current_price"))
         alerts_sent += 1
 

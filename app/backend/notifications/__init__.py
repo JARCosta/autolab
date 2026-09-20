@@ -32,26 +32,6 @@ class NotificationChannel:
         """Edit a previously-sent message."""
         raise NotImplementedError
 
-    def add_log(self, message: str) -> None:
-        """Add a message to the log."""
-        raise NotImplementedError
-
-    def get_log(self) -> str:
-        """Get the current log as a string."""
-        raise NotImplementedError
-
-    def clear_log(self) -> None:
-        """Clear the current log."""
-        raise NotImplementedError
-
-    def send_log(self) -> None:
-        """Send the current log to the user."""
-        raise NotImplementedError
-
-    def send_log_with_image(self, image_path: str) -> None:
-        """Send the current log to the user with an image."""
-        raise NotImplementedError
-
 
 def set_channel(channel: NotificationChannel) -> None:
     globals()["_channel"] = channel
@@ -88,10 +68,12 @@ class _MessageMerger:
         # return hash(message)
 
     @staticmethod
-    def _render(key: str, message: str, sources: set[str], count: int) -> str:
-        parts = [message.strip()]
+    def _render(message: str, sources: set[str], count: int) -> str:
+        parts = []
         if count > 1:
-            parts.append(f"Merged {count} messages")
+            parts.append(f"({count}) {message.strip()}")
+        else:
+            parts.append(message.strip())
         if sources:
             parts.append(f"Sources: {', '.join(sorted(sources))}")
         # parts.append(f"Key: {key}, Hash: {hash(message)}")
@@ -125,7 +107,7 @@ class _MessageMerger:
                 if source:
                     entry.sources.add(source)
 
-                rendered = self._render(key, entry.message, entry.sources, entry.count)
+                rendered = self._render(entry.message, entry.sources, entry.count)
                 self._edit_result(entry.notification_result, rendered, notification=True)
                 self._edit_result(entry.log_result, rendered, notification=False)
                 return entry.notification_result or entry.log_result
@@ -134,7 +116,7 @@ class _MessageMerger:
                 self._entries.pop(key, None)
 
             rendered_sources: set[str] = {source} if source else set()
-            rendered = self._render(key, message, rendered_sources, 1)
+            rendered = self._render(message, rendered_sources, 1)
 
             channel = _channel_or_raise()
             notification_result = None
@@ -174,19 +156,6 @@ def send_message(
         window=window,
     )
 
-
-def send_image(
-    image_path: str, caption: str = "", log: bool = True, notification: bool = False
-) -> Any:
-    return _channel_or_raise().send_image(
-        image_path, caption=caption, log=log, notification=notification
-    )
-
-
-def edit_message(chat_id: int, message_id: int, text: str, notification: bool = True) -> Any:
-    return _channel_or_raise().edit_message(chat_id, message_id, text, notification=notification)
-
-
 def send_message_threaded(
     message: str,
     log: bool = True,
@@ -206,6 +175,12 @@ def send_message_threaded(
         daemon=True,
     ).start()
 
+def send_image(
+    image_path: str, caption: str = "", log: bool = True, notification: bool = False
+) -> Any:
+    return _channel_or_raise().send_image(
+        image_path, caption=caption, log=log, notification=notification
+    )
 
 def send_image_threaded(
     image_path: str, caption: str = "", log: bool = True, notification: bool = False
@@ -217,27 +192,5 @@ def send_image_threaded(
         daemon=True,
     ).start()
 
-
-def add_telegram_log(message: str) -> None:
-    send_message(message, log=True, notification=False)
-
-
-def get_telegram_log() -> str:
-    return ""
-
-
-def clear_telegram_log() -> None:
-    return None
-
-
-def send_telegram_log() -> None:
-    return None
-
-
-def send_telegram_log_with_image(image_path: str) -> None:
-    del image_path
-    return None
-
-
-def send_telegram_log_threaded() -> None:
-    threading.Thread(target=send_telegram_log, daemon=True).start()
+def edit_message(chat_id: int, message_id: int, text: str, notification: bool = True) -> Any:
+    return _channel_or_raise().edit_message(chat_id, message_id, text, notification=notification)

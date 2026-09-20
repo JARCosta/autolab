@@ -40,7 +40,9 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
         channel,
         contest_id_1,
     )
-    se_helpers.sleep_until(end - datetime.timedelta(seconds=10), kill_thread=kill_thread)
+    success = se_helpers.sleep_until(end - datetime.timedelta(seconds=10), kill_thread=kill_thread)
+    if not success:
+        send_message(f"Time has already passed\nNow: {datetime.datetime.now()}\nEnd: {end}\n\n", notification=True, source=f"{username}({channel})")
 
     end, contest_json = se_helpers.get_active_contest(channel.lower())
     contest_id_2 = contest_json["contest"]["_id"] if contest_json else None
@@ -56,10 +58,12 @@ def betting_function(ws: websocket.WebSocketApp, username: str, channel: str, ki
         for option in options.values():
             option["probability"] = 1 / len(options)
     balance = se_helpers.fetch_balance(channel, username)
-    se_helpers.sleep_until(
+    success = se_helpers.sleep_until(
         end - datetime.timedelta(seconds=local_state.get_variable_delay()),
         kill_thread=kill_thread,
     )
+    if not success:
+        send_message(f"Time has already passed\nNow: {datetime.datetime.now()}\nEnd: {end}\n\n", notification=True, source=f"{username}({channel})")
 
     end, contest_json = se_helpers.get_active_contest(channel.lower())
     contest_id_3 = contest_json["contest"]["_id"] if contest_json else None

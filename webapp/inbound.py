@@ -6,6 +6,7 @@ import os
 
 from flask import Flask, jsonify, request
 
+from app.backend.notifications import send_message
 from app.runtime.telegram_ingress import configure_telegram_webhook
 from logging_config import setup_logging
 from webapp.telegram.webhook import process_update
@@ -33,4 +34,5 @@ def launch() -> None:
     host = os.getenv("INBOUND_HOST", "0.0.0.0").strip() or "0.0.0.0"
     configure_telegram_webhook(port)
     log.info("Starting inbound webhook service on %s:%s", host, port)
+    send_message(f"Starting inbound webhook service on {host}:{port}")
     create_inbound_app().run(host=host, port=port, debug=False, use_reloader=False)

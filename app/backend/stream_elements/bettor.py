@@ -5,8 +5,8 @@ import traceback
 from contextlib import suppress
 
 import numpy as np
+import requests
 import websocket
-from requests.adapters import ReadTimeoutError
 from websocket._exceptions import WebSocketConnectionClosedException
 
 from app.backend.notifications import send_message
@@ -25,12 +25,13 @@ from .twitch_chat import (check_if_mentioned, get_message_frequency,
 log = setup_logging("bettor")
 
 
-def _send_live_status_notification(channel: str, username: str, is_live: bool) -> None:
+def _send_live_status_notification(channel: str, is_live: bool) -> None:
     state = "live" if is_live else "offline"
+    log.info(f"Twitch channel {channel} is now {state}.")
     send_message(
         f"Twitch channel is now {state}.",
-        log=False,
-        notification=True,
+        log=True,
+        notification=is_live,
         source=f"{channel}",
     )
 
@@ -98,6 +99,8 @@ class Bettor:
 
     def disconnect(self):
         """Close WebSocket connection gracefully."""
+        send_message("Disconnecting from Twitch IRC", log=True, notification=False, source=f"{self.username}({self.channel})")
+        log.info("[%s, %s] Disconnecting from Twitch IRC", self.channel, self.username)
         if self.ws and self.is_connected:
             self.ws.close()
             self.wst.join(timeout=10)
@@ -131,10 +134,10 @@ class Bettor:
             return
         message_text = parsed["message"]
         sender = parsed["source"]["nick"]
-        mentioned = check_if_mentioned(message_text, self.username)
+        am_mentioned = check_if_mentioned(message_text, self.username)
 
         if sender.lower() != "streamelements" and sender.lower() != "nightbot":
-            if mentioned:
+            if am_mentioned:
                 if self.username.lower() != "TopGdosKwanzas".lower():
                     send_message(f"{sender}: {message_text}", log=False, notification=True, source=f"{self.username}({self.channel})")
                 return
@@ -150,8 +153,8 @@ class Bettor:
         if not self.is_bettor:
             return
 
-        if mentioned:
-            send_message(f"{sender}: {message_text}", source=f"{self.username}({self.channel})", log=False, notification=True)
+        if am_mentioned:
+            send_message(f"Mention: {sender}: {message_text}", source=f"{self.username}({self.channel})", log=False, notification=True)
 
         if "a new contest has started" in message_text:
             try:
@@ -178,11 +181,10 @@ class Bettor:
                 time.sleep(2)
                 fetch_and_store_balance(self.channel, self.username)
 
-        elif ", you have bet" in message_text:
+        elif ", you have bet" in message_text: # anyone betting, not just the bettor
             user = message_text.lower().split(", you have bet ")[0][1:]
             bet_amount = int(message_text.lower().split("you have bet ")[1].split(" points")[0])
             bet_option = message_text.lower().split(" points on ")[1].split(".")[0]
-            send_message(f"{sender}: {message_text}", log=False, notification=True, source=f"{self.username}({self.channel})")
             log.info("[%s, %s] %s: %s", self.channel, self.username, sender, message_text)
             if user.lower() == self.username.lower():
                 time.sleep(10)
@@ -194,8 +196,8 @@ class Bettor:
                 with suppress(Exception):
                     fetch_and_store_balance(self.channel, self.username)
 
-        elif mentioned and ", there is no contest currently running" in message_text:
-            telegram_message = f"{sender}: {message_text}\n"
+        elif am_mentioned and ", there is no contest currently running" in message_text:
+            telegram_message = f"Contest info: {sender}: {message_text}\n"
             end, _ = get_active_contest(self.channel)
             if end is None:
                 telegram_message += "No active contest found.\n"
@@ -212,7 +214,7 @@ class Bettor:
 
         elif "won the giveaway" in message_text:
             if self.username.lower() in message_text.lower():
-                send_message(f"{sender}: {message_text}", log=False, notification=True, source=f"{self.username}({self.channel})")
+                send_message(f"Giveaway: {sender}: {message_text}", log=False, notification=True, source=f"{self.username}({self.channel})")
                 time.sleep(np.random.uniform(5, 10))
                 ws.send(f"PRIVMSG #{self.channel.lower()} : GG")
                 time.sleep(np.random.uniform(3, 5))
@@ -254,15 +256,21 @@ def run_when_live(
             is_live = is_channel_live(channel.lower(), oauth_key)
 
             if is_live != last_live:
-                _send_live_status_notification(channel, username, is_live=is_live)
+                _send_live_status_notification(channel, is_live=is_live)
                 if is_live and not bettor_instance.is_connected:
                         bettor_instance.connect()
                 elif not is_live and bettor_instance.is_connected:
                         bettor_instance.disconnect()
             last_live = is_live
-        except ReadTimeoutError:
+        except requests.exceptions.ReadTimeout:
             log.error(f"Read timeout error on {username}({channel}).")
-            send_message(f"Read timeout error.", log=True, notification=True, source=f"{username}({channel})")
+            send_message(f"Read timeout error.", log=True, notification=False, source=f"{username}({channel})")
+        except requests.exceptions.ConnectionError:
+            log.error(f"Connection error on {username}({channel}).")
+            send_message(f"Connection error.", log=True, notification=False, source=f"{username}({channel})")
+        except requests.exceptions.HTTPError:
+            log.error(f"HTTP error on {username}({channel}).")
+            send_message(f"HTTP error.", log=True, notification=False, source=f"{username}({channel})")
         except Exception as e:
             log.error(f"Bettor loop error for {channel}: {e}")
             send_message(f"Bettor error: {traceback.format_exc()}", log=True, notification=True, source=f"{username}({channel})")

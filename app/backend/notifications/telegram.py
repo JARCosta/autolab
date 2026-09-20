@@ -108,18 +108,3 @@ class TelegramChannel(NotificationChannel):
             with open(image_path, "rb") as f:
                 r = self._do_send(self._logs_token, params, {"photo": f})
         return r.json()["result"] if r else None
-
-    def add_log(self, message: str) -> None:
-        _log.info("%s", message.rstrip())
-
-    def get_log(self) -> str:
-        return ""
-
-    def clear_log(self) -> None:
-        return None
-
-    def send_log(self) -> None:
-        return None
-
-    def send_log_with_image(self, image_path: str) -> None:
-        return None
